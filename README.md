@@ -15,7 +15,7 @@ No application code exists yet. See [`docs/README.md`](docs/README.md) for the r
 |---|---|---|
 | 0 | Architecture, data model, API, sync, security, testing, roadmap | ✅ delivered |
 | 1 | Project foundation (Laravel + Flutter skeletons, auth, CI) | ⏸ blocked on environment |
-| 2 | Quran dataset & page measurement | ▶ ready — KFGQPC source decided, import sign-off pending OD-025 |
+| 2 | Quran dataset & page measurement | ▶ ready — KFGQPC source decided, import pending OD-026 (edition) + OD-025 |
 | 3–10 | Students → Records → Attendance → Evaluation → Reports → Sync → Release | planned |
 
 ---
@@ -33,6 +33,7 @@ PostgreSQL 16 (shared schema, center_id scoped)
 
 Key design decisions:
 - **Quran master data from KFGQPC, imported as immutable versioned snapshots** — every calculated amount is traceable to a dataset version ([ADR-0008](docs/decisions/ADR-0008-quran-master-data-source.md)).
+- **Madinah-layout projects are references, not sources** — their data is a rendering recipe, hardcodes 15 lines/page, and carries a copyleft licence ([ADR-0009](docs/decisions/ADR-0009-layout-projects-as-references.md)).
 - **Page measurement as a sum of page fractions** — page height comes from the data, a surah is never assumed to be a page ([ADR-0003](docs/decisions/ADR-0003-page-measurement.md)).
 - **Versioned, declarative evaluation engine** — weights, criteria and recitation rules are data, not code ([ADR-0004](docs/decisions/ADR-0004-evaluation-rule-engine.md)).
 - **Per-entity conflict resolution** — no blanket last-write-wins ([ADR-0005](docs/decisions/ADR-0005-sync-and-conflict.md)).
@@ -63,6 +64,9 @@ Directories are created in Phase 1; Phase 0 ships documentation only.
 | [docs/architecture.md](docs/architecture.md) | Layers, modules, folder structure |
 | [docs/database.md](docs/database.md) | ERD, tables, indexes |
 | [docs/quran-data.md](docs/quran-data.md) | Dataset source, versioning & page measurement |
+| [docs/quran-data-model.md](docs/quran-data-model.md) | Minimum data model (level A+) |
+| [docs/quran-data-sources-comparison.md](docs/quran-data-sources-comparison.md) | Study of the two Madinah-layout projects vs KFGQPC + licensing matrix |
+| [docs/quran-validation-plan.md](docs/quran-validation-plan.md) | Import gate execution & sign-off |
 | [docs/quran-source-record.md](docs/quran-source-record.md) | Provenance & licensing record |
 | [docs/evaluation.md](docs/evaluation.md) | Evaluation engine |
 | [docs/offline-sync.md](docs/offline-sync.md) | Sync protocol & conflicts |

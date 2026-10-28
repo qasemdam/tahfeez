@@ -16,7 +16,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-002 | Which day starts the week | **Resolved 2026-10-28** | — |
 | OD-003 | Hijri or Gregorian calendar | **Resolved 2026-10-28** | — |
 | OD-004 | Rounding of measured pages | Open | Phase 6 |
-| OD-005 | Quran source & licensing | **Partial** — source resolved, licensing gate remains | bundling only |
+| OD-005 | Quran source & licensing | **Partial** — source resolved; 2 licensing blockers remain | bundling only |
 | OD-006 | Recitation: standalone or attached | Open | Phase 4 |
 | OD-007 | Attendance granularity: day or session | Open | Phase 5 |
 | OD-008 | Score caps | **Resolved 2026-10-28** | — |
@@ -37,6 +37,9 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-023 | Offline permission changes | Open | Phase 8 |
 | OD-024 | Branding of exported PDFs | Open | Phase 7 |
 | OD-025 | Page-break ayah encoding in the official dataset | Open — technical verification | Phase 2 import sign-off |
+| OD-026 | Which Madinah edition is the reference layout | **Open — blocking** | Phase 2 import |
+| OD-027 | Word-level data (level C) for the future reader | Open — deferred | post-MVP |
+| OD-028 | Reader layout strategy (if a reader is funded) | Open — deferred | post-MVP |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -116,7 +119,12 @@ No permission is assumed. Before the dataset is committed to the repository or s
 
 Until then: development uses a locally fetched artifact referenced by path and hash; nothing is bundled or published.
 
-**Applied to:** `quran-data.md` §2, §12 · `quran-source-record.md` · `business-rules.md` BR-QRN-07, BR-QRN-08 · ADR-0008.
+**Added 2026-10-28 — licensing findings from the layout-project study.** Two blockers, both avoidable because KFGQPC supplies the coordinates directly:
+
+- **BLOCKER-01 — licence conflict on layout data.** `quran-madina-html` licenses *code and assets* under **Waqf GPL 2.0** (clause seven: modified redistributions must remain under that licence). `quran-madina-layout` claims **MIT** and states its datasets are "derived from quran-madina-html (MIT License)", while shipping what appears to be the same v1 database (identical filename `Madina05-Hafs-24px.json`, 1,924,045 vs 1,924,046 bytes). Do not rely on the MIT claim. Treat that data as Waqf GPL 2.0 until resolved in writing. **Resolution: we do not use it** (ADR-0009).
+- **BLOCKER-02 — font licensing.** `quran-madina-layout` bundles KFGQPC typefaces (`Hafs.ttf`, `UthmanTN_v2-0.ttf`) with **no licence file**. No font may be bundled until its terms are recorded; prefer an OFL-1.1 font with the notice shipped.
+
+**Applied to:** `quran-data.md` §2, §12 · `quran-source-record.md` · `business-rules.md` BR-QRN-07, BR-QRN-08, BR-QRN-10, BR-QRN-11 · ADR-0008, ADR-0009 · `quran-data-sources-comparison.md` §8.
 
 ---
 
@@ -320,3 +328,47 @@ Until then: development uses a locally fetched artifact referenced by path and h
 **Recommendation:** implement the normalisation rule already specified (`quran-data.md` §6) so both encodings are handled, then verify empirically which one the artifact actually uses.
 
 **Blocks:** Phase 2 import sign-off — not the start of Phase 2 work. The measurement engine can be built against synthetic fixtures before the artifact is in hand.
+
+---
+
+## OD-026 — Which Madinah edition is the reference layout · **OPEN — BLOCKING**
+
+**Question.** "The Madinah Mushaf" is not one layout. The 1405 AH (old Madina) and 1441 AH prints break lines differently on roughly **37% of lines** — only 5,658 of 9,046 lines share a word count, per `quran-madina-html`'s own measurements. The same ayah range therefore measures to different page amounts depending on the print.
+
+**Options.**
+1. **1441 AH** — the current KFGQPC print (QCF4 data).
+2. **1405 AH** — the older print still used by many centers and by `quran-madina-layout`.
+3. **Both**, as two dataset versions selectable per center.
+
+**Why it is blocking.** Without an edition, the dataset is not comparable with anything: a student's 2.5 pages could become 2.4 after an "upgrade" with no code change and no error. It also decides which artifact to fetch.
+
+**Recommendation:** ask the pilot center which physical print its teachers actually hold, then pin that edition. Default assumption for a new center is **1441 AH** (current print), but it must be confirmed, not assumed. Option 3 is architecturally supported already (edition is part of the dataset version) and should be adopted only if centers genuinely differ.
+
+**Consequences:** `quran_dataset_versions.edition` is mandatory; switching edition creates a new dataset version and never rewrites history; reports must state the edition they were measured under.
+
+---
+
+## OD-027 — Word-level data (level C) · **OPEN — DEFERRED**
+
+**Question.** Do we ever need `ayah → word → page/line/position`?
+
+**Trigger for building it:** word-level highlighting in a reader, or a product decision that a hifz range may start/end mid-ayah at a word boundary. Neither exists in the MVP: §9 defines ranges by ayah.
+
+**Recommendation:** do not build now. When triggered, add `quran_words` keyed by `dataset_version_id` — purely additive, no change to measurement tables. Before building, pin the conventions that differ between implementations: basmala counted as 4 words (or not), sura names excluded, At-Tawba has none, Al-Fatiha's basmala is verse 1.
+
+**Blocks:** nothing in MVP.
+
+---
+
+## OD-028 — Reader layout strategy · **OPEN — DEFERRED**
+
+**Question.** If a printed-page reader is funded later, where does the layout come from?
+
+**Options.**
+1. Build in-house: OFL-1.1 Uthmani font + line breaks derived from our own licensed dataset.
+2. Adopt a Waqf-GPL layout dataset and comply with its copyleft terms.
+3. License a commercial layout.
+
+**Recommendation:** option 1. It keeps the licence surface clean, avoids a font dependency we do not control, and reuses the coordinates we already validate. Option 2 would force a copyleft obligation onto a shipped asset and is incompatible with a proprietary product unless isolated and disclosed.
+
+**Blocks:** post-MVP. Requires its own ADR and a per-asset licence clearance before any bundling.

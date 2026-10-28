@@ -45,12 +45,13 @@ Exit criteria: `make up && make test` green from a clean clone; CI green on PR.
 ## Phase 2 — Quran dataset & measurement engine
 
 **Branch:** `feature/quran-data`
-**Depends on:** KFGQPC artifact in hand (ADR-0008) · **OD-025** for import sign-off · licensing gate for bundling only
+**Depends on:** KFGQPC artifact in hand (ADR-0008) · **OD-026** (edition) before import · **OD-025** for import sign-off · licensing gate for bundling only
 **Goal:** the measurement engine, proven before anything depends on it.
 
 Deliverables
 - `quran_dataset_versions` + version-keyed snapshot tables + `QuranContext`.
-- Importer (`quran:import`) with the V-01…V-12 validation gate and a machine-readable `validation_report`.
+- Importer (`quran:import`) with the V-01…V-12 validation gate and a machine-readable `validation_report`, executed per `quran-validation-plan.md`.
+- `edition` recorded on the dataset version and verified against the pilot center's physical print.
 - `quran-source-record.md` completed for the imported artifact (URL, version, date, SHA-256, terms).
 - `PageMeasurement` service (PHP) + Dart mirror, both data-driven (no fixed page height).
 - `POST /quran/measure`, `GET /quran/meta|surahs|ayahs|pages`.
@@ -211,5 +212,7 @@ Per-feature pre-flight and post-flight reports follow §14 / §15 of the GitHub 
 ## Explicitly deferred (Future Features)
 
 Region management · multi-qiraʾat · audio recitation · push notifications · parent portal · billing · AI-assisted analysis · 2FA · multi-center teachers · per-center branding · offline permission management.
+
+Also deferred, and now specified rather than vague: a **printed-page reader** (level D layout, OD-028) and **word-level data** (level C, OD-027). Both are additive to the data model and must never enter the measurement tables (ADR-0009).
 
 These are recorded so they are not implemented by accident.

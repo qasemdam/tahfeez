@@ -33,6 +33,17 @@ Three concerns are deliberately separated:
 
 Replacing the primary source with a third-party dataset is an architectural change and MUST go through an ADR (ADR-0008). It is not a configuration toggle.
 
+### 2.1 Layout projects are references, not sources
+
+`quran-madina-layout` and `quran-madina-html` were studied in depth (see [`quran-data-sources-comparison.md`](quran-data-sources-comparison.md)). They are **rendering** datasets — they answer "how does this line look", not "which page and line does this ayah occupy". They also:
+
+- hardcode 15 lines per page (`line_1to15`, `range(1, 16)`), which BR-QRN-09 forbids;
+- cannot represent an ayah that crosses a page break (one `page` field, lines 1…15);
+- carry a licence conflict (Waqf GPL 2.0 upstream vs an MIT claim downstream — BLOCKER-01);
+- are edition-locked (1405 AH, or 1441H/1405H/IndoPak in the successor).
+
+They are therefore **reference implementations to learn from**, never data sources for measurement (ADR-0009, BR-QRN-10).
+
 ---
 
 ## 3. Dataset versioning model
@@ -45,6 +56,7 @@ quran_dataset_versions
   source            varchar      e.g. 'kfgqpc'
   source_url        varchar
   source_version    varchar      as published by the source
+  edition           varchar      madinah_1405h | madinah_1441h | …   ← required, see OD-026
   source_format     varchar      csv | json | sql | xml | txt | xlsx
   downloaded_at     timestamptz
   imported_at       timestamptz
@@ -69,6 +81,7 @@ Consequences:
 - Historical memorization/review/recitation rows keep pointing at the version they were measured with, so their amounts never change silently (BR-MEM-14).
 - Storage cost is trivial (≈6.2k ayah rows per version); correctness is worth it.
 - Exactly one version is `is_active`; all application reads resolve through a single `QuranContext` bound per request. No query may join an unversioned Quran table, because none exists.
+- **Edition is part of the identity.** The 1405 AH and 1441 AH Madinah prints break lines differently on roughly 37% of lines, so two datasets are comparable only when they share an edition. Mixing them changes measured amounts without a single line of code changing (**OD-026**).
 
 **Activation** is an explicit, audited action (`quran:activate {version}`). Importing a dataset does not make it live.
 
@@ -253,6 +266,8 @@ Re-measuring an old record under a new dataset version is an explicit, audited o
 ## 11. Validation gate
 
 The import is rejected unless every check passes. `validation_status` stays `failed` and activation is impossible.
+
+Execution procedure, evidence requirements, page-break verification and the sign-off checklist are in [`quran-validation-plan.md`](quran-validation-plan.md).
 
 | ID | Check | Failure mode |
 |---|---|---|

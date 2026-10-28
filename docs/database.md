@@ -163,6 +163,7 @@ Every table below is keyed by `dataset_version_id`. There is no unversioned Qura
 | source | varchar(32) | `kfgqpc` (primary source, ADR-0008) |
 | source_url | varchar(255) | exact URL of the artifact |
 | source_version | varchar(64) | as published by the source |
+| edition | varchar(32) | `madinah_1405h` / `madinah_1441h` / … — coordinates are edition-specific (BR-QRN-10) |
 | source_format | varchar(8) | `csv`/`json`/`sql`/`xml`/`txt`/`xlsx` |
 | downloaded_at / imported_at | timestamptz | |
 | checksum_sha256 | char(64) | of the raw artifact |
@@ -211,6 +212,8 @@ Constraints: PK `(dataset_version_id, id)` · `unique (dataset_version_id, surah
 
 ### `quran_active_version`
 Not a table — a single cached pointer (`QuranContext`) resolved once per request from `quran_dataset_versions.is_active`. Every Quran read goes through it.
+
+**Deliberately absent:** line widths, gap widths, stretch factors, font-feature tags, per-word coordinates, page images. Those are rendering concerns (level D) and belong in a separate static asset, never in the measurement schema (BR-QRN-11, ADR-0009).
 
 ---
 
