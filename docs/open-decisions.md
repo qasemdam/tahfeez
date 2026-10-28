@@ -1,40 +1,44 @@
 # Tahfeez — Open Decisions Register
 
-Status: **Awaiting review** · Phase 0
+Status: **Review round 1 applied — 2026-10-28** · Phase 0
 Rule §22: an undefined rule is **not invented**. It is recorded here, with options and a recommendation, and blocked until decided.
 
 **How to read the "Blocks" column:** `Phase n` means the decision must be made before that phase starts. `—` means it can be decided later without rework.
+**Status:** `Open` · `Resolved` (decided, applied to docs) · `Partial` (part decided, a named gate remains).
 
 ---
 
 ## 0. Summary
 
-| ID | Decision | Blocks | Recommendation |
+| ID | Decision | Status | Blocks |
 |---|---|---|---|
-| OD-001 | Age: date of birth vs static age | Phase 3 | Store `birth_date`, keep `age_years` as fallback |
-| OD-002 | Which day starts the week | Phase 6 | Center-configurable, default Saturday |
-| OD-003 | Hijri or Gregorian week/report calendar | Phase 6 | Gregorian for storage, Hijri for display |
-| OD-004 | Rounding policy for evaluation input | Phase 6 | `exact`, configurable to 0.25/0.5 |
-| OD-005 | Quran dataset source & font licence | **Phase 2** | KFGQPC Madinah dataset + licensed Uthmani font |
-| OD-006 | Recitation: standalone or attached | Phase 4 | Standalone record, optional link |
-| OD-007 | Attendance granularity: day or session | Phase 5 | One record per student per day |
-| OD-008 | May a criterion exceed 100%? | Phase 6 | Per-criterion `cap`, default uncapped for pages |
-| OD-009 | Missing-data default policy | Phase 6 | `block` for recitation, `treat_as_zero` for pages |
-| OD-010 | Cross-surah ranges allowed in one record | Phase 4 | Yes |
-| OD-011 | Where `required_pages` is configured | Phase 6 | Profile version, center default 1.00 |
-| OD-012 | Encrypt local mobile DB | Phase 8 | Yes, SQLCipher |
-| OD-013 | Token lifetimes | Phase 1 | 30d mobile / 12h web |
-| OD-014 | Ranking tie-break rule | Phase 7 | Errors asc, then student id |
-| OD-015 | Who publishes templates / approval flow | Phase 6 | Manager publishes; teacher drafts |
-| OD-016 | Grade level: free text or lookup table | Phase 3 | Free text in MVP |
-| OD-017 | Column-level encryption for PII | Phase 9 | No in MVP; disk encryption + access control |
-| OD-018 | Framework/dependency versions | **Phase 1** | Pin after environment audit |
-| OD-019 | `change_log` retention window | Phase 8 | 90 days |
-| OD-020 | Data residency / erasure legal basis | Phase 9 | Organization policy, not code |
-| OD-021 | Can a teacher belong to multiple centers? | Phase 3 | No in MVP (one center per user) |
-| OD-022 | Deleting a record referenced by an approved evaluation | Phase 6 | Soft delete + recompute proposal |
-| OD-023 | May managers mutate users/permissions offline? | Phase 8 | No |
-| OD-024 | Branding of exported PDFs | Phase 7 | Neutral template + center name |
+| OD-001 | Age: date of birth vs static age | Open | Phase 3 |
+| OD-002 | Which day starts the week | **Resolved 2026-10-28** | — |
+| OD-003 | Hijri or Gregorian calendar | **Resolved 2026-10-28** | — |
+| OD-004 | Rounding of measured pages | Open | Phase 6 |
+| OD-005 | Quran source & licensing | **Partial** — source resolved, licensing gate remains | bundling only |
+| OD-006 | Recitation: standalone or attached | Open | Phase 4 |
+| OD-007 | Attendance granularity: day or session | Open | Phase 5 |
+| OD-008 | Score caps | **Resolved 2026-10-28** | — |
+| OD-009 | Missing-data default policy | Open | Phase 6 |
+| OD-010 | Cross-surah ranges allowed | Open (recommend yes) | Phase 4 |
+| OD-011 | Where `required_pages` is configured | Open | Phase 6 |
+| OD-012 | Encrypt local mobile DB | Open | Phase 8 |
+| OD-013 | Token lifetimes | Open | Phase 1 |
+| OD-014 | Ranking tie-break rule | Open | Phase 7 |
+| OD-015 | Who publishes templates | Open | Phase 6 |
+| OD-016 | Grade level: free text or lookup | Open | Phase 3 |
+| OD-017 | Column-level encryption for PII | Open | Phase 9 |
+| OD-018 | Framework/dependency versions | Open | **Phase 1** |
+| OD-019 | `change_log` retention window | Open | Phase 8 |
+| OD-020 | Data residency / erasure legal basis | Open | Phase 9 |
+| OD-021 | Multi-center teacher membership | Open | Phase 3 |
+| OD-022 | Deleting a record referenced by an approved evaluation | Open | Phase 6 |
+| OD-023 | Offline permission changes | Open | Phase 8 |
+| OD-024 | Branding of exported PDFs | Open | Phase 7 |
+| OD-025 | Page-break ayah encoding in the official dataset | Open — technical verification | Phase 2 import sign-off |
+
+**Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
 ---
 
@@ -53,25 +57,35 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 
 ---
 
-## OD-002 — Week start day
+## OD-002 — Week start day · **RESOLVED 2026-10-28**
 
-**Question.** `achievement_pct` is weekly. A week must have a defined first day, or two devices will disagree about which records belong to "this week".
+**Decision.** The weekly evaluation start day is a **center-level setting**, never a universal business rule.
 
-**Options.** Saturday (common in the region) · Sunday · Monday · Friday · configurable per center.
+```text
+centers.weekly_evaluation_start_day                     enum WeekStartDay { saturday … friday }
+centers.weekly_evaluation_start_day_effective_from      date
+```
 
-**Recommendation:** configurable per center, default **Saturday**. Stored as `centers.week_start_day`, resolved server-side only.
+- Represented by an enum/configuration in both codebases — no literal day and no `day == 6` in evaluation logic.
+- The current center is configured with `saturday`. That is a configured value, not a hard-coded assumption.
+- Changing the setting MUST NOT recalculate or mutate historical weekly evaluations. Each row keeps its own `week_start` / `week_end` / `week_start_day`.
+- The change applies from `effective_from`; a change that would overlap an already-computed period is rejected.
 
-**Blocking note:** this is a *blocking* decision for the evaluation phase. Building weekly aggregation before it is fixed guarantees a migration of historical rows.
+**Applied to:** `business-rules.md` BR-TEN-04, BR-TEN-05, BR-EVL-16 · `evaluation.md` §5.1 · `database.md` `centers`, `weekly_evaluations` · `architecture.md` §10.
 
 ---
 
-## OD-003 — Calendar system
+## OD-003 — Calendar system · **RESOLVED 2026-10-28**
 
-**Question.** Reports and centers in the region often think in Hijri months; the database and sync need an unambiguous calendar.
+**Decision.** Gregorian is canonical. Hijri is a display concern only.
 
-**Options.** Gregorian only · Hijri only · Gregorian storage + Hijri display.
+- All stored dates, period keys and report parameters are Gregorian.
+- Hijri dates may be shown alongside Gregorian where useful (parent reports, matching paper registers), computed at render time.
+- A Hijri date is never a storage key, a join key, or the basis of a week/month boundary.
 
-**Recommendation:** store `date` values as Gregorian (unambiguous, timezone-safe), display Hijri where the center chooses. Never store a Hijri date as the primary key of a period.
+**Rationale:** Gregorian is unambiguous across timezones and across libraries; Hijri month lengths vary by convention and would make period boundaries non-deterministic — which conflicts with §21.
+
+**Applied to:** `business-rules.md` BR-TEN-06 · `evaluation.md` §5.1 · `api.md` date conventions.
 
 ---
 
@@ -90,18 +104,19 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 
 ---
 
-## OD-005 — Quran dataset and font licensing
+## OD-005 — Quran source & licensing · **PARTIAL** (source resolved 2026-10-28)
 
-**Question.** The system's correctness depends on a specific printed mushaf. The dataset must be legally usable and the font must be licensed for embedding in a mobile app.
+**Resolved — data availability and source of truth.**
+The **KFGQPC official developer dataset** (<https://qurancomplex.gov.sa/quran-dev/>) is the primary and authoritative source, available in CSV, JSON, SQL, XML, TXT and Excel, with Hafs/Uthmanic Madinah-Mushaf data exposing `page`, `line_start`, `line_end`, `sura_no`, `aya_no`, `aya_text_unicode`, `sura_name_ar`, `sura_name_en`, `jozz`.
 
-**Options.**
-1. KFGQPC (King Fahd Complex) published Madinah mushaf data + KFGQPC Uthmanic Hafs font.
-2. A community dataset (e.g. Tanzil text) with a separately sourced page/line mapping.
-3. Build the mapping in-house from scanned pages.
+Priority: KFGQPC (primary) → Tanzil (cross-validation only) → anything else (requires an ADR).
 
-**Recommendation:** option 1, with written permission/attribution recorded in `docs/decisions/`. Option 3 is months of work and is not MVP.
+**Remaining gate — licensing/usage verification (blocking for bundling only).**
+No permission is assumed. Before the dataset is committed to the repository or shipped inside an app binary, `quran-source-record.md` must document: source URL, dataset/version, download date, SHA-256, attribution requirements, and the licence/usage terms **as provided by the source**, reviewed and signed off. Font (Uthmani) licensing is a separate line item.
 
-**Blocking:** Phase 2 cannot start without this. Importing an unlicensed or mismatched dataset would corrupt every measurement in the system.
+Until then: development uses a locally fetched artifact referenced by path and hash; nothing is bundled or published.
+
+**Applied to:** `quran-data.md` §2, §12 · `quran-source-record.md` · `business-rules.md` BR-QRN-07, BR-QRN-08 · ADR-0008.
 
 ---
 
@@ -127,13 +142,21 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 
 ---
 
-## OD-008 — Score caps
+## OD-008 — Score caps · **RESOLVED 2026-10-28**
 
-**Question.** Can a criterion produce more than 100 (e.g. 250% memorization)? If yes, a single criterion can dominate a weighted score.
+**Decision.** The two evaluation values live on different scales and are never mixed.
 
-**Options.** Cap everything at 100 · cap per criterion · uncapped with weights absorbing it.
+| | Basic achievement | Advanced score |
+|---|---|---|
+| Column | `achievement_pct` | `weighted_score` |
+| Range | **uncapped** (250%, 300%) | **0–100**, normalised |
+| Changes when | actual/required changes | weights, criteria or thresholds change |
 
-**Recommendation:** uncapped for `memorization_pages` (it is the spec's headline behaviour), capped at 100 for quality criteria, configured per criterion via `params.cap`. The aggregation must then state whether the total is clamped — recommendation: clamp the **final** weighted score to 0…100, keep `achievement_pct` uncapped.
+- `achievement_pct` is never clamped in storage; a display cap is a presentation choice.
+- `weighted_score` is clamped to `0…100` after aggregation.
+- Neither value is ever averaged, combined, substituted or written into the other's column.
+
+**Applied to:** `business-rules.md` BR-EVL-13, BR-EVL-15 · `evaluation.md` §1, §3.3 · `database.md` `weekly_evaluations`.
 
 ---
 
@@ -276,3 +299,24 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 **Question.** Do PDF reports carry the center's logo and colours?
 
 **Recommendation:** neutral template with center name, logo slot and Arabic/Latin fonts; per-center theming is a Future Feature. Keep the export pipeline deterministic — no client-side styling.
+
+---
+
+## OD-025 — Page-break ayah encoding in the official dataset
+
+**Question.** The KFGQPC row shape is one `page` plus `line_start`/`line_end`. When an ayah continues past the bottom of its page, does the dataset:
+
+- **A)** let `line_end` exceed `lines_count(page)` (overflow encodes the continuation), or
+- **B)** clamp/split so that `line_end ≤ lines_count(page)` always holds?
+
+**Why it matters.** Under A, the importer can reconstruct exact coordinates by walking forward. Under B, a page-break ayah would be silently truncated and every range ending on one would be under-measured. The two cases require different handling, and guessing produces plausible-but-wrong numbers — the worst failure mode for this system.
+
+**Action (Phase 2, before import sign-off).**
+1. Inspect the artifact for `line_end > lines_count(page)` occurrences and count them.
+2. Compare at least 5 candidates against the printed mushaf.
+3. Record the result in `validation_report` and in `quran-data.md` §6 (replace the A/B wording with the observed behaviour).
+4. If the count is zero, prove it — do not assume it.
+
+**Recommendation:** implement the normalisation rule already specified (`quran-data.md` §6) so both encodings are handled, then verify empirically which one the artifact actually uses.
+
+**Blocks:** Phase 2 import sign-off — not the start of Phase 2 work. The measurement engine can be built against synthetic fixtures before the artifact is in hand.

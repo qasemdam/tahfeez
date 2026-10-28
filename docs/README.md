@@ -1,6 +1,6 @@
 # Tahfeez — Documentation Index
 
-**Phase 0 — Architecture & Project Foundation** · Status: *awaiting review* · 2026-10-28
+**Phase 0 — Architecture & Project Foundation** · Status: *review round 1 applied (2026-10-28), awaiting sign-off* · 2026-10-28
 
 No application code has been written. This is intentional: the master instruction (§28) requires Phase 0 to end with a review gate, and §22 forbids inventing undefined business rules.
 
@@ -13,28 +13,35 @@ No application code has been written. This is intentional: the master instructio
 | 1 | [`business-rules.md`](business-rules.md) | Every rule the system enforces, with IDs (`BR-*`) and source section |
 | 2 | [`architecture.md`](architecture.md) | Layers, modules, folder structure, technology choices |
 | 3 | [`database.md`](database.md) | ERD, tables, columns, constraints, indexes, migration order |
-| 4 | [`quran-data.md`](quran-data.md) | How "how much did the student memorize" is actually computed |
-| 5 | [`evaluation.md`](evaluation.md) | Baseline + advanced evaluation, versioning, snapshots, determinism |
-| 6 | [`offline-sync.md`](offline-sync.md) | Outbox, push/pull protocol, conflict matrix |
-| 7 | [`api.md`](api.md) | Endpoint surface, conventions, error contract |
-| 8 | [`permissions.md`](permissions.md) | Permission catalogue, default matrix, scope rules |
-| 9 | [`security.md`](security.md) | Threat model, controls, privacy/retention |
-| 10 | [`testing.md`](testing.md) | Test strategy, CI gates, Definition of Done |
-| 11 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, environment gaps |
-| 12 | [`open-decisions.md`](open-decisions.md) | **24 decisions that need your input** |
-| 13 | [`decisions/`](decisions/) | 7 ADRs for the non-obvious choices |
+| 4 | [`quran-data.md`](quran-data.md) | Source of truth, versioned import, and how "how much did the student memorize" is computed |
+| 5 | [`quran-source-record.md`](quran-source-record.md) | Provenance, attribution and licensing record for each imported dataset |
+| 6 | [`evaluation.md`](evaluation.md) | Baseline + advanced evaluation, period configuration, snapshots, determinism |
+| 7 | [`offline-sync.md`](offline-sync.md) | Outbox, push/pull protocol, conflict matrix |
+| 8 | [`api.md`](api.md) | Endpoint surface, conventions, error contract |
+| 9 | [`permissions.md`](permissions.md) | Permission catalogue, default matrix, scope rules |
+| 10 | [`security.md`](security.md) | Threat model, controls, privacy/retention |
+| 11 | [`testing.md`](testing.md) | Test strategy, CI gates, Definition of Done |
+| 12 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, environment gaps |
+| 13 | [`open-decisions.md`](open-decisions.md) | **25 decisions — 3 resolved, 1 partial, 21 open** |
+| 14 | [`decisions/`](decisions/) | 8 ADRs for the non-obvious choices |
 
 ---
 
-## The three things that most need your attention
+## The five things that most need your attention
 
-**1. Page measurement is line-based, not page-counted (ADR-0003).**
-A range is measured in mushaf lines: `amount_lines = global_end − global_start + 1`, `pages = lines / 15`. This is the only approach that satisfies §10 (a surah is not a page) and produces exact values like 2.5 pages. It requires a dataset with page **and** line coordinates for both ends of every ayah — a stricter requirement than most public Quran datasets. **OD-005 blocks Phase 2.**
+**1. Page measurement is data-driven, not a constant (ADR-0003, amended 2026-10-28).**
+A range is measured as a sum of page fractions: `amount_pages = Σ covered_lines(p) / lines_count(p)`. There is no `1 page = 15 lines` anywhere in the system — `lines_count` comes from the imported dataset. This satisfies §10 (a surah is not a page) and stays correct on irregular pages, where a fixed-height model understates by ~24%. Every calculated record stores the `quran_dataset_version_id` that produced it, so importing a newer dataset never silently changes a historical amount.
 
-**2. The week boundary is undefined in the spec (OD-002 / OD-003).**
-Weekly evaluation cannot be built until "which day starts the week" and "which calendar" are decided. Building first and deciding later means migrating historical grades.
+**2. The Quran source is now decided (ADR-0008), with one gate left.**
+KFGQPC's official developer dataset (`qurancomplex.gov.sa/quran-dev/`) is the primary and authoritative source; Tanzil is cross-validation only; anything else needs an ADR. Imports are immutable, version-keyed snapshots behind a 12-check validation gate. The remaining gate is **licensing** (OD-005): no permission is assumed, and nothing is committed or bundled until the terms are documented in `quran-source-record.md`.
 
-**3. Conflicts are resolved per entity, never globally (ADR-0005).**
+**3. Period boundaries belong to the evaluation, not to a global rule (OD-002 resolved).**
+`weekly_evaluation_start_day` is a center-level enum setting — the current center uses `saturday`, but no code may hard-code a day. Each weekly evaluation stores its own `week_start`, `week_end` and `week_start_day`, so changing the setting later cannot move a student's week. Gregorian is canonical; Hijri is display-only (OD-003).
+
+**4. The two evaluation scores never mix (OD-008 resolved).**
+`achievement_pct` is uncapped (2.5 pages against 1 = 250%). `weighted_score` is normalised 0–100. Separate columns, separate rendering, no averaging, no substitution.
+
+**5. Conflicts are resolved per entity, never globally (ADR-0005).**
 Records are events (keep both), attendance is state (human decides), approved evaluations are server-only. A blanket last-write-wins would silently destroy a teacher's work.
 
 ---
@@ -43,12 +50,15 @@ Records are events (keep both), attendance is state (human decides), approved ev
 
 | ID | Decision | Blocks |
 |---|---|---|
-| OD-005 | Quran dataset + font licence | Phase 2 |
-| OD-002 | Week start day | Phase 6 |
-| OD-003 | Hijri vs Gregorian | Phase 6 |
-| OD-004 | Rounding of measured pages | Phase 6 |
-| OD-018 | Dependency versions | Phase 1 |
+| OD-018 | Dependency versions | **Phase 1** |
+| OD-025 | Page-break ayah encoding in the official dataset | Phase 2 import sign-off |
 | OD-001 | Age representation | Phase 3 |
+| OD-004 | Rounding of measured pages | Phase 6 |
+| OD-009 | Missing-data policy | Phase 6 |
+| OD-011 | Where `required_pages` is configured | Phase 6 |
+| OD-015 | Template publishing authority | Phase 6 |
+| OD-022 | Deleting a record in an approved week | Phase 6 |
+| OD-005 (remainder) | Dataset & font licensing | production bundling only |
 
 Everything else in `open-decisions.md` can be decided in parallel with development.
 

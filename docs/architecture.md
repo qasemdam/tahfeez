@@ -78,7 +78,7 @@ Rule: a module may not import another module's `Models` directly. Cross-module r
 | `Tenancy` | `centers`, settings | Center resolution, timezone, week configuration |
 | `Identity` | `users`, roles, devices, tokens | Auth, roles/permissions, device registry |
 | `Students` | `students`, `student_teacher_assignments` | Student lifecycle, assignment history |
-| `Quran` | `quran_surahs`, `quran_ayahs`, `quran_pages` | Read-only dataset, range resolution, measurement |
+| `Quran` | `quran_dataset_versions`, `quran_surahs`, `quran_ayahs`, `quran_pages` | KFGQPC import + validation gate, immutable versioned snapshots, active-version context, range resolution, measurement |
 | `Memorization` | `memorizations` | New hifz records |
 | `Review` | `reviews` | Murajaʿah records |
 | `Recitation` | `recitations` | Tasmiʿ records + scoring |
@@ -248,7 +248,9 @@ Config is environment-driven; no environment is hard-coded. Secrets come from en
 
 **Idempotency.** Every mutating sync endpoint requires an `op_id`; duplicates return the original result instead of re-applying.
 
-**Time.** All timestamps stored as `timestamptz` in UTC. Business dates (`session_date`, week boundaries) are `date` in the center's timezone. The conversion happens once, in `WeekResolver` / `BusinessDate` support classes — never ad hoc in controllers.
+**Time.** All timestamps are stored as `timestamptz` in UTC. Business dates (`session_date`, week boundaries) are `date` in the center's timezone, and the canonical calendar is Gregorian. The weekly period start day is **center configuration** (`weekly_evaluation_start_day`, an enum), not a constant — the current center uses `saturday`. Conversion and period resolution happen once, in `WeekResolver` / `BusinessDate` support classes, never ad hoc in controllers, and each weekly evaluation stores the boundaries it was computed with so a later setting change cannot rewrite history.
+
+**Quran context.** Quran tables are version-keyed; every request resolves the active dataset version once (`QuranContext`) and all reads go through it. There is no unversioned Quran table to query by accident.
 
 **Decimals.** A single `Decimal` value object wraps `bcmath` with fixed scale; used for pages, percentages and weights. Prevents the classic `0.1 + 0.2` drift in evaluation math.
 

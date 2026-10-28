@@ -11,7 +11,7 @@ Target: PostgreSQL 16 · All timestamps `timestamptz` (UTC) · All business deci
 2. **Two key spaces.** Server `bigint` identity (internal, indexed, FK target) + client `uuid` (`client_uuid`, nullable, unique per center) for offline-created rows. See ADR-0006.
 3. **Immutable history.** Records that feed grades are never hard-deleted: `deleted_at` soft delete, plus `version` integer for optimistic concurrency.
 4. **Snapshots over joins.** Anything that explains a historical score is copied into the evaluation row, not recomputed later.
-5. **Quran data is reference data.** No `center_id`, no writes at runtime, replaced wholesale by dataset version.
+5. **Quran data is versioned reference data.** No `center_id`, no writes at runtime. Each import creates an immutable snapshot; rows are keyed by `(dataset_version_id, …)` and historical records point at the snapshot they were measured with.
 6. **Enums as `varchar` + `CHECK`**, not PG enums — adding a value must not require a table rewrite lock.
 
 ---
@@ -34,6 +34,7 @@ erDiagram
     USERS ||--o{ RECITATIONS : records
     USERS ||--o{ ATTENDANCES : marks
 
+    QURAN_DATASET_VERSIONS ||--o{ QURAN_AYAHS : snapshots
     QURAN_SURAHS ||--o{ QURAN_AYAHS : contains
     QURAN_AYAHS ||--o{ MEMORIZATIONS : range_from
     QURAN_AYAHS ||--o{ REVIEWS : range_from
@@ -63,7 +64,8 @@ erDiagram
 | slug | varchar(80) | unique |
 | timezone | varchar(64) | IANA, e.g. `Asia/Riyadh` |
 | locale | varchar(5) | `ar` / `en` default |
-| week_start_day | smallint | 1=Mon … 7=Sun **[OD-002]** |
+| weekly_evaluation_start_day | varchar(10) | enum `WeekStartDay`: `saturday`…`friday`. Setting, not a rule. New centers default to `saturday` (current center) |
+| weekly_evaluation_start_day_effective_from | date | the setting applies only to weeks starting on/after this date; historical weeks keep their stored boundaries |
 | settings | jsonb | default-required pages, rounding policy, feature toggles |
 | is_active | boolean | |
 | created_at / updated_at | timestamptz | |
@@ -150,40 +152,65 @@ Constraints:
 
 ---
 
-## 5. Quran reference data (global, read-only)
+## 5. Quran master data (global, read-only, versioned)
+
+Every table below is keyed by `dataset_version_id`. There is no unversioned Quran table, so no query can accidentally mix two datasets.
+
+### `quran_dataset_versions`
+| Column | Type | Notes |
+|---|---|---|
+| id | bigint PK | |
+| source | varchar(32) | `kfgqpc` (primary source, ADR-0008) |
+| source_url | varchar(255) | exact URL of the artifact |
+| source_version | varchar(64) | as published by the source |
+| source_format | varchar(8) | `csv`/`json`/`sql`/`xml`/`txt`/`xlsx` |
+| downloaded_at / imported_at | timestamptz | |
+| checksum_sha256 | char(64) | of the raw artifact |
+| validation_status | varchar(12) | `pending`/`passed`/`failed` |
+| validation_report | jsonb | per-check results V-01…V-12 |
+| is_active | boolean | exactly one true — partial unique index |
+| notes | text | |
+
+Constraints: `unique index (is_active) where is_active` · `index (source, source_version)`
 
 ### `quran_surahs`
-`id` smallint PK (= surah number 1–114) · `name_ar` · `name_en` · `name_transliteration` · `revelation_place` (`makki`/`madani`) · `ayah_count` · `page_start` · `page_end`
+PK `(dataset_version_id, id)` · `name_ar` · `name_en` · `name_transliteration` null · `revelation_place` null · `ayah_count` · `page_start` · `page_end`
+
+`revelation_place` and `name_transliteration` are nullable because they are **not** in the official field list; they are populated only if the source provides them.
 
 ### `quran_pages`
 | Column | Type | Notes |
 |---|---|---|
-| page_number | smallint PK | 1–604 |
-| juz_number | smallint | 1–30 |
-| hizb_number | smallint | 1–60 |
-| lines_count | smallint | normally 15; explicit per page |
-| line_offset | integer | Σ lines of all previous pages |
+| dataset_version_id | bigint | part of PK |
+| page_number | smallint | part of PK |
+| juz_number | smallint null | from `jozz` where available |
+| hizb_number / rub_number | smallint null | not in the official field list — never guessed |
+| lines_count | smallint | **derived from the dataset**, not assumed |
+| line_offset | integer | Σ `lines_count` of previous pages; audit/ordering only |
 
-`line_offset` is precomputed at import. It exists because the Madinah print does **not** have a perfectly uniform line count on the opening pages; hard-coding `(page-1)*15` would produce wrong measurements there. See `quran-data.md`.
+Constraints: PK `(dataset_version_id, page_number)` · `check (lines_count > 0)`
+
+There is no `15` constant anywhere in the schema. Page height is data (BR-QRN-09).
 
 ### `quran_ayahs`
 | Column | Type | Notes |
 |---|---|---|
-| id | integer PK | 1–6236 (global order) |
-| surah_id | smallint FK | |
-| number_in_surah | smallint | |
-| text_uthmani | text | Uthmani script, read-only |
-| page_start / line_start | smallint | coordinate of first glyph |
-| page_end / line_end | smallint | coordinate of last glyph (a long ayah may span pages) |
-| juz_number / hizb_number / rub_number | smallint | for range reports |
+| dataset_version_id | bigint | part of PK |
+| id | integer | part of PK — global ayah id 1…6236 |
+| surah_id | smallint | |
+| number_in_surah | smallint | from `aya_no` |
+| text_uthmani | text | from `aya_text_unicode`, stored verbatim |
+| page_start / line_start | smallint | from `page` / `line_start` |
+| page_end / line_end | smallint | normalised across page breaks (`quran-data.md` §6) |
+| juz_number | smallint null | from `jozz` |
 | is_sajda | boolean | |
 
-Constraints: `unique (surah_id, number_in_surah)` · `index (page_start, line_start)` · `index (surah_id, number_in_surah)`
+Constraints: PK `(dataset_version_id, id)` · `unique (dataset_version_id, surah_id, number_in_surah)` · `index (dataset_version_id, page_start, line_start)`
 
-**Critical:** an ayah is not guaranteed to sit on a single page. Storing only `page_number` would make range measurement ambiguous; storing both coordinates makes it exact.
+**Critical:** an ayah is not guaranteed to sit on a single page. The official row carries one `page` plus `line_start`/`line_end`; the importer normalises any overflow into `page_end`/`line_end`, and records the count of such ayahs in the validation report. Storing a single page number would make range measurement ambiguous.
 
-### `quran_dataset_versions`
-`id` · `version` (semver-ish string) · `source` · `checksum` · `imported_at` · `notes`
+### `quran_active_version`
+Not a table — a single cached pointer (`QuranContext`) resolved once per request from `quran_dataset_versions.is_active`. Every Quran read goes through it.
 
 ---
 
@@ -205,6 +232,7 @@ All three share a measurement block and an assessment block. They are **separate
 | amount_pages | numeric(8,4) | canonical amount |
 | amount_lines | integer null | present when `CALCULATED` |
 | amount_source | varchar(10) | `CALCULATED` \| `MANUAL` |
+| quran_dataset_version_id | bigint FK null | the snapshot used for measurement; null only for `MANUAL` records without a range |
 | grade | varchar(16) null | `excellent`/`very_good`/`good`/`needs_review` |
 | hifz_errors | smallint null | |
 | tajweed_errors | smallint null | |
@@ -223,7 +251,9 @@ Constraints on each table:
 - `check (from_ayah_id is null or to_ayah_id >= from_ayah_id)`
 
 ### `memorizations`
-Shared columns + `week_key date` (denormalised `week_start`, filled on write, indexed) so weekly aggregation never recomputes week boundaries in SQL per row.
+Shared columns + `week_key date` — a **denormalised index hint only**, filled on write from the period in force at that moment.
+
+`week_key` MUST NOT be used for aggregation. The evaluation engine groups by `session_date BETWEEN week_start AND week_end` using the period boundaries **stored on the evaluation row**, so changing `weekly_evaluation_start_day` later cannot silently re-bucket historical records (BR-EVL-16).
 
 ### `reviews`
 Shared columns + `week_key date`.
@@ -330,7 +360,8 @@ Immutability: no updates after creation; a change inserts a new version and clos
 | id | bigint PK | |
 | center_id | bigint FK | |
 | student_id | bigint FK | |
-| week_start / week_end | date | center-local (BR-TEN-04) |
+| week_start / week_end | date | center-local; **stored period boundaries, never recomputed** (BR-EVL-16) |
+| week_start_day | varchar(10) | snapshot of the `WeekStartDay` in force when this period was opened |
 | profile_version_id | bigint FK | |
 | template_version_id | bigint FK | |
 | required_pages | numeric(6,2) | snapshot |
@@ -351,7 +382,7 @@ Constraints:
 - `index (center_id, week_start, status)`
 - `check (achievement_pct >= 0)` · `check (revision >= 1)`
 
-**Why snapshot columns instead of joins:** an approved grade must remain explainable a year later even if the template was archived, a criterion renamed, or the student's profile changed. The row carries its own explanation.
+**Why snapshot columns instead of joins:** an approved grade must remain explainable a year later even if the template was archived, a criterion renamed, or the student's profile changed. The row carries its own explanation. The same reasoning applies to the period: `week_start`, `week_end` and `week_start_day` are copied onto the row, so a later change to the center's `weekly_evaluation_start_day` cannot retroactively move a student's week.
 
 ---
 
@@ -410,7 +441,7 @@ Rules: no index without a named query; every new endpoint must state which index
 
 1. `centers`
 2. `users`, roles/permissions, `devices`
-3. `quran_surahs`, `quran_pages`, `quran_ayahs`, `quran_dataset_versions`
+3. `quran_dataset_versions` → `quran_surahs` → `quran_pages` → `quran_ayahs` (all version-keyed, FK to the dataset version)
 4. `students`, `student_teacher_assignments`
 5. `memorizations`, `reviews`, `rule_sets`, `recitations`
 6. `attendances`

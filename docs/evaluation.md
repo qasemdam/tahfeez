@@ -20,6 +20,18 @@ weekly_evaluations
 
 Rationale: if a center later disables an advanced template, the historical baseline numbers are still there and comparable. If the baseline were derived on the fly from the template, it would vanish with it.
 
+**The two values are never mixed (BR-EVL-15).**
+
+| | Basic achievement | Advanced score |
+|---|---|---|
+| Column | `achievement_pct` | `weighted_score` |
+| Range | **0 … unbounded** (250%, 300%) | **0 … 100**, normalised |
+| Formula | `actual / required × 100` | `Σ (normalized_i × weight_i) / Σ weight_i` |
+| Present when | always | an advanced template is bound to the profile |
+| Meaning | how much was memorised vs. the requirement | weighted quality across configured criteria |
+
+They are stored in separate columns, rendered in separate places, and never averaged, combined or substituted. A report that shows "85%" must state which of the two it is showing.
+
 ---
 
 ## 2. Baseline formula (frozen)
@@ -42,7 +54,7 @@ These six rows are a **mandatory test fixture**. If they fail, nothing else matt
 Constraints:
 - `required_pages > 0` — a zero or null requirement is a validation error, never a division guard that silently returns 0.
 - Decimal arithmetic (`bcmath`, scale 6) — not floats. `2.5 / 1 * 100` must be exactly `250.00`, not `249.99999`.
-- Uncapped by default: 300% is a valid achievement, not clamped to 100. Clamping is a *per-criterion* display/evaluation option **[OD-008]**, never a global rule.
+- **Not capped (OD-008 resolved).** 300% is a valid achievement and is stored as `300.00`. A display cap is a presentation choice only; the stored value is never clamped, and `achievement_pct` is never written into `weighted_score`.
 
 ---
 
@@ -89,6 +101,8 @@ weighted_score = Σ (normalized_i × weight_i) / Σ weight_i
 ```
 
 When all criteria are present, `Σ weight_i = 100` and the division is a no-op. When a criterion is excluded by the missing-data policy, weights are renormalised by the denominator — **but only if** the template's policy is `exclude_and_renormalize`. The policy is stored in the snapshot so the historical number stays explainable.
+
+**Normalisation (BR-EVL-15).** `weighted_score` is clamped to `0…100` after aggregation — it is a percentage-of-quality scale, not a measure of volume. Individual criteria may produce raw values above 100 (memorization volume), but the aggregate is normalised. `achievement_pct` is a *different* number and is never clamped, never renormalised and never written into `weighted_score`.
 
 ### 3.4 Missing-data policy (per criterion, explicit)
 
@@ -164,6 +178,26 @@ Rules:
 
 **Worked boundary case.** Profile v1 effective 2026-01-01, v2 effective 2026-02-15 (a Sunday). Week of 2026-02-13…2026-02-19: the week *starts* on v1's side, so the whole week uses **v1**. Half-week switching is not supported and is explicitly rejected — a week is the atomic unit of grading.
 
+### 5.1 Period boundaries
+
+The first day of the week is **center configuration**, not a business constant (BR-TEN-04):
+
+```text
+centers.weekly_evaluation_start_day                    enum WeekStartDay { saturday … friday }
+centers.weekly_evaluation_start_day_effective_from     date
+```
+
+- The current center is configured with `saturday`. That is a setting, not an assumption baked into code; another center may run `sunday` or `friday`.
+- The value is represented by an enum in both codebases. No `if (day == 6)` and no `'Saturday'` literal may appear in evaluation logic.
+- Each `weekly_evaluations` row stores `week_start`, `week_end` and `week_start_day` as **snapshot data** at the moment the period is opened.
+- Changing the setting affects only periods opening on/after `…_effective_from`. It never recalculates, re-buckets or mutates an existing evaluation (BR-TEN-05).
+- Recomputing a historical week reads the row's stored boundaries. It does not consult the center's current setting (BR-EVL-16).
+- Aggregation uses `session_date BETWEEN week_start AND week_end`. The denormalised `week_key` on records is an index hint only and must never be grouped by.
+
+**Overlap guard.** A setting change that would produce a period overlapping an already-computed period is rejected with a clear error rather than silently creating two overlapping weeks. The operator must choose an `effective_from` that lands after the last computed period.
+
+**Calendar.** Stored dates are Gregorian (BR-TEN-06). Hijri dates are rendered alongside at display time — useful for parents and for matching paper registers — but never stored as a key and never used to compute a boundary.
+
 ---
 
 ## 6. Recompute policy
@@ -225,3 +259,6 @@ A property test asserts: same `(records, snapshot)` ⇒ byte-identical `componen
 | `missing_recitation_block` | policy `block` yields `incomplete`, not a fake score |
 | `idempotent_recompute` | second recompute with same inputs → same revision |
 | `attendance_opt_in` | absence does not change `achievement_pct` |
+| `two_scores_separate` | achievement 250.00 stored uncapped; `weighted_score` within 0–100; neither value derived from the other |
+| `period_setting_change` | changing `weekly_evaluation_start_day` leaves every existing `week_start`/`week_end` untouched |
+| `period_overlap_guard` | an `effective_from` that would overlap a computed period is rejected |

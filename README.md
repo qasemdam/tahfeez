@@ -15,7 +15,7 @@ No application code exists yet. See [`docs/README.md`](docs/README.md) for the r
 |---|---|---|
 | 0 | Architecture, data model, API, sync, security, testing, roadmap | ✅ delivered |
 | 1 | Project foundation (Laravel + Flutter skeletons, auth, CI) | ⏸ blocked on environment |
-| 2 | Quran dataset & page measurement | ⏸ blocked on OD-005 |
+| 2 | Quran dataset & page measurement | ▶ ready — KFGQPC source decided, import sign-off pending OD-025 |
 | 3–10 | Students → Records → Attendance → Evaluation → Reports → Sync → Release | planned |
 
 ---
@@ -32,7 +32,8 @@ PostgreSQL 16 (shared schema, center_id scoped)
 ```
 
 Key design decisions:
-- **Page measurement by mushaf line coordinates** — a surah is never assumed to be a page ([ADR-0003](docs/decisions/ADR-0003-page-measurement.md)).
+- **Quran master data from KFGQPC, imported as immutable versioned snapshots** — every calculated amount is traceable to a dataset version ([ADR-0008](docs/decisions/ADR-0008-quran-master-data-source.md)).
+- **Page measurement as a sum of page fractions** — page height comes from the data, a surah is never assumed to be a page ([ADR-0003](docs/decisions/ADR-0003-page-measurement.md)).
 - **Versioned, declarative evaluation engine** — weights, criteria and recitation rules are data, not code ([ADR-0004](docs/decisions/ADR-0004-evaluation-rule-engine.md)).
 - **Per-entity conflict resolution** — no blanket last-write-wins ([ADR-0005](docs/decisions/ADR-0005-sync-and-conflict.md)).
 - **Server-authoritative derived values** — the client previews, the server decides ([ADR-0007](docs/decisions/ADR-0007-server-authoritative-logic.md)).
@@ -61,7 +62,8 @@ Directories are created in Phase 1; Phase 0 ships documentation only.
 | [docs/business-rules.md](docs/business-rules.md) | All enforced rules with IDs |
 | [docs/architecture.md](docs/architecture.md) | Layers, modules, folder structure |
 | [docs/database.md](docs/database.md) | ERD, tables, indexes |
-| [docs/quran-data.md](docs/quran-data.md) | Dataset & page measurement |
+| [docs/quran-data.md](docs/quran-data.md) | Dataset source, versioning & page measurement |
+| [docs/quran-source-record.md](docs/quran-source-record.md) | Provenance & licensing record |
 | [docs/evaluation.md](docs/evaluation.md) | Evaluation engine |
 | [docs/offline-sync.md](docs/offline-sync.md) | Sync protocol & conflicts |
 | [docs/api.md](docs/api.md) | API surface |

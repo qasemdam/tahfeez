@@ -46,12 +46,15 @@ test('computes 250% for 2.5 pages against 1 page requirement [BR-EVL-04]', …);
 
 | Suite | Covers |
 |---|---|
-| `Unit/Quran/PageMeasurementTest` | line arithmetic, boundaries, cross-surah, page-break ayah, golden fixtures |
+| `Unit/Quran/PageMeasurementTest` | page-fraction arithmetic, irregular page heights, boundaries, cross-surah, page-break ayah, golden fixtures |
+| `Feature/Quran/DatasetImportTest` | V-01…V-12 rejection cases, no partial import on failure, checksum mismatch, page-break normalisation, version isolation (import v2 → v1 records unchanged) |
 | `Unit/Evaluation/BaselineAchievementTest` | the six §11 rows, 250% case, decimal exactness |
 | `Unit/Evaluation/CriterionCalculatorTest` | each of the five calculators, params, missing-data policies |
 | `Unit/Evaluation/RuleSetEvaluatorTest` | banded rules, totality, invalid rule rejection |
 | `Feature/Evaluation/PublishTemplateTest` | weights must total 100, immutability after publish |
 | `Feature/Evaluation/WeeklyEvaluationTest` | snapshot content, profile boundary week, idempotent recompute, no retroactive change |
+| `Feature/Evaluation/PeriodConfigTest` | `weekly_evaluation_start_day` is configuration not a constant; changing it does not mutate stored periods; overlap guard rejects an unsafe `effective_from`; aggregation ignores `week_key` |
+| `Feature/Evaluation/TwoScoresTest` | `achievement_pct` uncapped (250/300%), `weighted_score` clamped 0–100, the two never derived from each other |
 | `Feature/Students/AssignmentTest` | one active assignment, history preserved, scope |
 | `Feature/Records/MemorizationTest` | CALCULATED vs MANUAL, server recompute, range validation |
 | `Feature/Attendance/BulkTest` | idempotent day upsert, unique constraint behaviour |

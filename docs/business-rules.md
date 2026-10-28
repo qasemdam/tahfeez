@@ -19,7 +19,9 @@ Conventions:
 | BR-TEN-01 | Every business record belongs to exactly one **Center**. `center_id` is mandatory on all tenant tables and is never accepted from the client — it is derived from the authenticated user. |
 | BR-TEN-02 | A user may only read or write data of their own center. Cross-center access MUST return `404` (not `403`) to avoid resource enumeration. |
 | BR-TEN-03 | The hierarchy `Region → Center → Users → Students` MUST be additively extensible. MVP ships `Center` only; adding `Region` later MUST NOT require rewriting existing tables (§7). |
-| BR-TEN-04 | Every center has a `timezone` and a `week_start_day`. All week boundaries are computed in the center's timezone, never in UTC and never on the client. **[OD-002, OD-003]** |
+| BR-TEN-04 | Every center has a `timezone` and a **`weekly_evaluation_start_day`** setting (enum `WeekStartDay`: `saturday`…`friday`). Week boundaries are computed in the center's timezone, never in UTC and never on the client. The value is configuration, **not** a universal rule — no day may be hard-coded in evaluation logic. |
+| BR-TEN-05 | Changing `weekly_evaluation_start_day` applies only to periods opening on/after `weekly_evaluation_start_day_effective_from`. It MUST NOT recalculate, re-bucket or mutate any existing weekly evaluation, and MUST NOT alter a stored `week_start`/`week_end`. A change that would make a new period overlap an already-computed period is rejected. |
+| BR-TEN-06 | **Gregorian is the canonical calendar** for all stored dates and all period keys. Hijri dates may be *displayed* alongside Gregorian, computed at render time. A Hijri date is never a storage key, never a join key, and never the basis of a week or month boundary. **[OD-003 resolved]** |
 
 ## 2. Roles & Authorization
 
@@ -52,9 +54,12 @@ Conventions:
 | BR-QRN-01 | Quran data is **read-only** for all users. There is no write endpoint, no admin UI, and no client-side mutation path. |
 | BR-QRN-02 | The reference edition is the **Madinah Mushaf, Hafs ʿan ʿAsim, Uthmani script** (§8). Any other edition is out of scope. |
 | BR-QRN-03 | Surah names, ayah text, ayah numbers and page numbers MUST NOT be editable, and MUST NOT be derived or guessed at runtime. |
-| BR-QRN-04 | Quran data is versioned as a dataset (`quran_dataset_version`). Clients store the version they hold and receive a delta or full replacement when the server version changes. |
-| BR-QRN-05 | The client bundles a Quran dataset for offline use; the server remains the reference for validation. A mismatch MUST be resolved in favour of the server dataset version. |
+| BR-QRN-04 | Quran data is imported as an **immutable, versioned snapshot** with `source`, `source_version`, `downloaded_at`, `imported_at`, `checksum_sha256` and `validation_status`. Importing a new version adds rows; it never rewrites an existing snapshot. |
+| BR-QRN-05 | The client bundles a Quran dataset for offline use; the server remains the reference for validation. A mismatch MUST be resolved in favour of the **active** server dataset version. |
 | BR-QRN-06 | Quran identifiers (`surah_id`, `ayah_id`) are stable integers and are the only accepted inputs for ranges. Free-text surah names are never stored. |
+| BR-QRN-07 | **Source priority.** (1) KFGQPC official developer dataset — primary and authoritative; (2) Tanzil — secondary cross-validation only, never imported as master data; (3) any other source — not authoritative without an explicit ADR. Replacing the primary source requires an ADR, not a configuration change. |
+| BR-QRN-08 | No permission is assumed. Before a dataset is committed to the repository or bundled into a shipped application, a provenance record must document source URL, dataset version, download date, checksum, attribution requirements and licence terms as provided by the source. Unresolved licensing is a **blocking** decision. |
+| BR-QRN-09 | **Page structure is data.** The system MUST NOT assume a fixed number of lines per page. `lines_count` is derived from the imported dataset, and measurement is a sum of page fractions (`Σ covered_lines(p) / lines_count(p)`), never a division by a constant. |
 
 ## 5. Memorization (New Hifz)
 
@@ -65,7 +70,7 @@ Conventions:
 | BR-MEM-03 | When a range of ayahs is provided, the amount is **calculated** by the system from the mushaf page/line mapping (BR-MEM-06). The user does not type the calculated amount. |
 | BR-MEM-04 | When a manual amount is provided, the ayah range MAY be omitted; the record is marked `MANUAL` and MUST be visually distinguished in reports. |
 | BR-MEM-05 | Start page/end page are **derived** from the ayah range and stored read-only for reporting. They are not user-editable in the `CALCULATED` path. |
-| BR-MEM-06 | **Page measurement (core rule).** A range is measured in mushaf *lines*, not by counting ayahs and not by treating one surah as one page. `amount_pages = amount_lines / lines_per_page`, where `amount_lines` is the inclusive span between the start coordinate and the end coordinate in the global line grid of the mushaf. |
+| BR-MEM-06 | **Page measurement (core rule).** A range is measured in mushaf lines, not by counting ayahs and not by treating one surah as one page. For pages `p1…pn` covered by the range: `amount_pages = Σ (covered_lines(p) / lines_count(p))`. This is a sum of page fractions; it reduces to `lines / lines_count` only when the covered pages happen to share a height. `lines_count` comes from the dataset (BR-QRN-09). |
 | BR-MEM-07 | A surah is **never** assumed to equal one page. No rule may infer page count from surah identity or ayah count alone (§10). |
 | BR-MEM-08 | Precision: `amount_pages` is stored as `numeric(8,4)`. `amount_lines` (integer) is stored alongside for `CALCULATED` records so the value can be recomputed and audited. |
 | BR-MEM-09 | Display/evaluation rounding is a **policy**, applied after measurement, never baked into the stored raw value. **[OD-004]** |
@@ -73,6 +78,7 @@ Conventions:
 | BR-MEM-11 | A memorization record's `session_date` MUST fall within the student's enrollment period and MUST NOT be in the future relative to the center's timezone (clock-skew tolerance documented in the sync spec). |
 | BR-MEM-12 | Editing a memorization record that is already consumed by an **approved** weekly evaluation MUST NOT silently change that evaluation. It creates a recompute proposal instead (§13). |
 | BR-MEM-13 | A single range MAY span two surahs (e.g. end of Al-Baqarah into Al-Imran). Ranges are expressed in global ayah order, so cross-surah ranges are well-defined and MUST NOT be split into fabricated records. **[OD-010]** |
+| BR-MEM-14 | Every `CALCULATED` record stores the `quran_dataset_version_id` used for measurement. Importing or activating a newer dataset MUST NOT change the stored amount of an existing record. Re-measuring an old record is an explicit, audited operation with a reason. |
 
 ## 6. Review (Murajaʿah)
 
@@ -120,8 +126,10 @@ Conventions:
 | BR-EVL-10 | An approved weekly evaluation is immutable. Corrections create a new **revision** with a mandatory reason, keeping the previous revision retrievable. |
 | BR-EVL-11 | The evaluation engine is deterministic and pure: same inputs + same snapshot ⇒ same output, always. No randomness, no AI, no wall-clock dependency. |
 | BR-EVL-12 | Criteria whose inputs are missing (e.g. no attendance recorded) MUST be handled by an explicit, configured policy (`treat_as_zero` / `exclude_and_renormalize` / `block`), never by an implicit default. **[OD-009]** |
-| BR-EVL-13 | Score normalisation caps: whether a criterion may exceed 100% (e.g. 250% memorization) or is capped is a per-criterion parameter, not a global assumption. **[OD-008]** |
+| BR-EVL-13 | **Basic achievement is not capped.** `achievement_pct` may exceed 100% (250%, 300%) and is stored as computed. Any display cap is a presentation choice, never a stored-value change. **[OD-008 resolved]** |
 | BR-EVL-14 | Weekly evaluation generation is **idempotent**: recomputing the same week with unchanged inputs yields the same revision content, not a new revision. |
+| BR-EVL-15 | **Two separate values, never mixed.** Basic achievement (`achievement_pct`, uncapped, §11) and the advanced weighted score (`weighted_score`, normalised **0–100**, §12) are stored in separate columns, displayed separately, and never averaged, combined, substituted or used interchangeably. No report may present one as the other. |
+| BR-EVL-16 | A weekly evaluation owns its **period boundaries** (`week_start`, `week_end`, `week_start_day`) as immutable snapshot data. Recomputing a historical week uses those stored boundaries, never the center's current setting. Record aggregation uses `session_date BETWEEN week_start AND week_end` — never a denormalised `week_key`. |
 
 ## 10. Reports
 

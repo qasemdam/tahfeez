@@ -60,13 +60,13 @@ Token payload never contains authorization decisions — only identity and devic
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/quran/meta` | Dataset version, checksum, counts |
+| GET | `/quran/meta` | Active dataset: `dataset_version_id`, source, source_version, imported_at, checksum, validation_status, surah/ayah/page counts |
 | GET | `/quran/surahs` | 114 rows, cacheable, `ETag` |
 | GET | `/quran/surahs/{id}/ayahs` | Ayah list with page/line coordinates |
-| GET | `/quran/pages/{n}` | Page metadata (lines, juz, hizb) |
-| POST | `/quran/measure` | `{from_ayah_id, to_ayah_id}` → `{amount_lines, amount_pages, from_page, to_page}` |
+| GET | `/quran/pages/{n}` | Page metadata (`lines_count`, juz where available) |
+| POST | `/quran/measure` | `{from_ayah_id, to_ayah_id}` → `{amount_lines, amount_pages, from_page, to_page, dataset_version_id}` |
 
-`/quran/measure` is a **read-only computation endpoint**: it exists so the client can verify its local algorithm against the server. It writes nothing.
+`/quran/measure` is a **read-only computation endpoint**: it exists so the client can verify its local algorithm against the server. It writes nothing. `dataset_version_id` is returned so the caller knows exactly which snapshot produced the number.
 
 ---
 

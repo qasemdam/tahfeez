@@ -45,18 +45,22 @@ Exit criteria: `make up && make test` green from a clean clone; CI green on PR.
 ## Phase 2 — Quran dataset & measurement engine
 
 **Branch:** `feature/quran-data`
-**Depends on:** **OD-005** (dataset + font licence)
+**Depends on:** KFGQPC artifact in hand (ADR-0008) · **OD-025** for import sign-off · licensing gate for bundling only
 **Goal:** the measurement engine, proven before anything depends on it.
 
 Deliverables
-- Migrations + importer (`quran:import`) with the 8-point validation gate (`quran-data.md` §6).
-- `PageMeasurement` service (PHP) + Dart mirror.
+- `quran_dataset_versions` + version-keyed snapshot tables + `QuranContext`.
+- Importer (`quran:import`) with the V-01…V-12 validation gate and a machine-readable `validation_report`.
+- `quran-source-record.md` completed for the imported artifact (URL, version, date, SHA-256, terms).
+- `PageMeasurement` service (PHP) + Dart mirror, both data-driven (no fixed page height).
 - `POST /quran/measure`, `GET /quran/meta|surahs|ayahs|pages`.
 - `docs/fixtures/page-measurement.json` (≥300 vectors, 20 hand-verified against the printed mushaf).
 - Mobile: bundled dataset asset + local measurement.
 
-Tests: golden vectors in both languages, additivity/monotonicity properties, importer rejection cases, boundary pages (1, 2, 604), page-spanning ayah, cross-surah range.
-Exit criteria: both implementations pass the identical fixture file; importer fails loudly on a corrupted dataset.
+Tests: golden vectors in both languages, additivity/monotonicity properties, importer rejection cases for each V-check, irregular-height page, page-spanning ayah, cross-surah range, dataset-version isolation (import v2 → v1 records unchanged).
+Exit criteria: both implementations pass the identical fixture file; importer fails loudly on a corrupted dataset; activating a new version leaves historical amounts untouched.
+
+**Note:** development may start against synthetic fixtures before the official artifact is fetched; only **import sign-off** depends on OD-025 and the provenance record.
 
 **This phase is the correctness backbone.** A measurement bug discovered in Phase 6 invalidates every stored record.
 
@@ -118,18 +122,19 @@ Exit criteria: submitting the same day twice creates zero duplicates.
 ## Phase 6 — Evaluation engine
 
 **Branch:** `feature/evaluation`
-**Depends on:** **OD-002, OD-003, OD-004, OD-008, OD-009, OD-011, OD-015, OD-022** — the heaviest decision gate
+**Depends on:** **OD-004, OD-009, OD-011, OD-015, OD-022** (OD-002, OD-003 and OD-008 are resolved)
 **Goal:** baseline + advanced evaluation with snapshots and versioning.
 
 Deliverables
+- Center `weekly_evaluation_start_day` setting (enum) + period resolver + overlap guard.
 - Templates → versions → criteria, with publish validation (weights = 100).
 - Profiles → versions with `effective_from`, `required_pages`.
 - Five calculators + aggregation + missing-data policies.
-- `weekly_evaluations` with `components` + `rules_snapshot`, revision policy.
+- `weekly_evaluations` with `components` + `rules_snapshot` + period boundaries; `achievement_pct` and `weighted_score` stored separately.
 - Compute (queued), approve, recompute endpoints.
 - Mobile: student week view, manager approval screen.
 
-Tests: the six §11 rows, 250% case, decimal exactness, weight validation, profile boundary week, no retroactive change, idempotent recompute, attendance opt-in, missing-data policies, determinism property test.
+Tests: the six §11 rows, 250% case (uncapped), `weighted_score` clamped 0–100 and never derived from `achievement_pct`, decimal exactness, weight validation, profile boundary week, period-setting change does not mutate history, overlap guard, idempotent recompute, attendance opt-in, missing-data policies, determinism property test.
 Exit criteria: two runs on the same week produce byte-identical components; an approved week is provably immutable.
 
 ---
