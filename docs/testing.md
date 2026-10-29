@@ -46,7 +46,7 @@ test('computes 250% for 2.5 pages against 1 page requirement [BR-EVL-04]', …);
 
 | Suite | Covers |
 |---|---|
-| `Unit/Quran/PageMeasurementTest` | page-fraction arithmetic, irregular page heights, boundaries, cross-surah, page-break ayah, golden fixtures |
+| `Unit/Quran/PageMeasurementTest` | page-fraction arithmetic, irregular page heights (pages 1–2 = 8 lines), surah-start pages with 2 decoration lines, boundaries, cross-surah, page-break ayah, golden fixtures |
 | `Feature/Quran/DatasetImportTest` | V-01…V-12 rejection cases, no partial import on failure, checksum mismatch, page-break normalisation, version isolation (import v2 → v1 records unchanged) |
 | `Feature/Quran/EditionPinTest` | a dataset without `edition` is rejected; the same range measured under two editions yields different amounts; switching edition creates a new version and leaves existing records untouched |
 | `Unit/Evaluation/BaselineAchievementTest` | the six §11 rows, 250% case, decimal exactness |

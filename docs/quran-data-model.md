@@ -38,7 +38,7 @@ quran_dataset_versions  1 ──< quran_surahs
 | source | varchar(32) | ✓ | `kfgqpc` |
 | source_url | varchar(255) | ✓ | exact artifact URL |
 | source_version | varchar(64) | ✓ | as published |
-| **edition** | varchar(32) | ✓ | e.g. `madinah_1441h`, `madinah_1405h` (**OD-026**) |
+| **edition** | varchar(32) | ✓ | canonical value for Tahfeez: `madinah_1405h_hafs_uthmani` (OD-026 resolved) |
 | source_format | varchar(8) | ✓ | csv/json/sql/xml/txt/xlsx |
 | downloaded_at | timestamptz | ✓ | |
 | imported_at | timestamptz | ✓ | |
@@ -61,7 +61,7 @@ Optional and nullable, populated only if the source provides them: `name_transli
 
 `(dataset_version_id, page_number)` · `lines_count` · `line_offset` · `juz_number` (nullable) · `hizb_number` / `rub_number` (nullable)
 
-- `lines_count` — **derived from the dataset** (distinct lines present on the page), never assumed.
+- `lines_count` — the **physical page height**, taken from the edition specification: 15 on pages 3–604 and **8 on pages 1–2** for `madinah_1405h_hafs_uthmani` (verified on the real artifact). It is **not** derived from the lines that ayah records cover: 57 pages carry surah title/basmala decorations on 2 lines, so coverage-based counting reports 13 instead of 15 and overstates measurements taken there by up to 15%.
 - `line_offset` — Σ previous `lines_count`; ordering/audit only, not a measurement basis.
 - `juz_number` from `jozz`. `hizb`/`rub` are not in the official field list → nullable, never guessed.
 

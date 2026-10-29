@@ -163,7 +163,7 @@ Every table below is keyed by `dataset_version_id`. There is no unversioned Qura
 | source | varchar(32) | `kfgqpc` (primary source, ADR-0008) |
 | source_url | varchar(255) | exact URL of the artifact |
 | source_version | varchar(64) | as published by the source |
-| edition | varchar(32) | `madinah_1405h` / `madinah_1441h` / … — coordinates are edition-specific (BR-QRN-10) |
+| edition | varchar(32) | canonical: `madinah_1405h_hafs_uthmani` — coordinates are edition-specific (BR-QRN-10, OD-026) |
 | source_format | varchar(8) | `csv`/`json`/`sql`/`xml`/`txt`/`xlsx` |
 | downloaded_at / imported_at | timestamptz | |
 | checksum_sha256 | char(64) | of the raw artifact |

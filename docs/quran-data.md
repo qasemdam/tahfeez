@@ -44,6 +44,25 @@ Replacing the primary source with a third-party dataset is an architectural chan
 
 They are therefore **reference implementations to learn from**, never data sources for measurement (ADR-0009, BR-QRN-10).
 
+### 2.2 Canonical edition (OD-026, resolved 2026-10-29)
+
+| Attribute | Value |
+|---|---|
+| Mushaf | مصحف المدينة النبوية |
+| Edition | **1405 AH** |
+| Riwayah | Hafs ʿan ʿAsim |
+| Script | Uthmani |
+| Pages | 604 |
+| Lines per page | 15 — *descriptive property of the print*, never a formula |
+
+Identifier: **`madinah_1405h_hafs_uthmani`**.
+
+The 15-line fact must never appear as a divisor in code. `lines_count` is read per page from the dataset (BR-QRN-09); on this edition it is 15 everywhere, which is a *finding*, not an assumption.
+
+**Verification requirement (VR-EDITION).** Being "the official KFGQPC data" does not prove the edition. If an artifact carries no metadata identifying the print, the gap is recorded and the artifact is not activated on the strength of its name — see `quran-validation-plan.md` S-04.
+
+**Current status (2026-10-29).** The only official artifact reachable from the platform (`kfgqpc_hafs_v30`) **does not match this edition**: its line breaks match the 1441 AH layout 100% on juz 30 and the 1405 AH layout only 20.9%. It passed all 12 structural checks and still cannot be activated. No snapshot exists; `validation_status` stays `failed`. Resolution is **OD-029**; evidence in `quran-validation-report.md`.
+
 ---
 
 ## 3. Dataset versioning model
@@ -155,16 +174,22 @@ else:
 
 The import **reports the count** of page-break ayahs in `validation_report`. If the count is non-zero, a sample (minimum 5) must be visually verified against the printed mushaf before activation. If the count is zero, that fact is recorded explicitly — silence is not evidence.
 
+**Empirical result (KFGQPC Hafs v3.0, 2026-10-29).** Zero rows with `line_end > 15`; zero ayahs split across pages; the longest ayah (2:282, 1,193 chars) exactly fills page 48, lines 1–15; and the chars-per-covered-line distribution has no outliers (median 52, p99 92, max 108). No ayah crosses a page break in this edition, and none is truncated. `page_end`/`line_end` stay in the model regardless: a single `page` field cannot *prove* absence, and a future edition may differ. Details in `quran-validation-report.md` §6.
+
 ---
 
 ## 7. Page structure is data-driven, not assumed
 
-There is **no** hard-coded "1 page = 15 lines" rule anywhere in the system. Page height comes from the imported dataset:
+There is **no** hard-coded "1 page = 15 lines" rule anywhere in the system. Page height is data:
 
 ```text
-lines_count(page) = number of distinct lines present on that page in the dataset
+lines_count(page) = physical number of text lines on that page (from the edition spec)
 line_offset(page) = Σ lines_count(1 … page−1)     -- derived metadata, not a measurement basis
 ```
+
+For `madinah_1405h_hafs_uthmani` the verified values are **15 on pages 3–604 and 8 on pages 1–2** (measured on the real artifact — see `quran-validation-report.md` §4).
+
+**Do not derive `lines_count` from the lines that ayah records happen to cover.** Verified on the artifact: 41 pages carry a surah title + basmala on lines 1–2, and a further 16 start a surah mid-page, so coverage-based counting reports **13 instead of 15** on those pages and would overstate every measurement taken there by up to 15%. Page height is a property of the page, not of its contents.
 
 `line_offset` exists for ordering, debugging and audit only. Measurement does **not** depend on a uniform page height.
 

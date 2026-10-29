@@ -36,10 +36,11 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-022 | Deleting a record referenced by an approved evaluation | Open | Phase 6 |
 | OD-023 | Offline permission changes | Open | Phase 8 |
 | OD-024 | Branding of exported PDFs | Open | Phase 7 |
-| OD-025 | Page-break ayah encoding in the official dataset | Open — technical verification | Phase 2 import sign-off |
-| OD-026 | Which Madinah edition is the reference layout | **Open — blocking** | Phase 2 import |
+| OD-025 | Page-break ayah encoding in the official dataset | **Resolved 2026-10-29** — none present, no truncation | — |
+| OD-026 | Reference edition (Madinah 1405H / Hafs / Uthmani / 604 / 15) | **Resolved 2026-10-29** | — |
 | OD-027 | Word-level data (level C) for the future reader | Open — deferred | post-MVP |
 | OD-028 | Reader layout strategy (if a reader is funded) | Open — deferred | post-MVP |
+| OD-029 | **Edition conflict**: canonical 1405H vs the only official artifact (1441H) | **Open — BLOCKING** | Phase 2 import |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -310,41 +311,56 @@ Until then: development uses a locally fetched artifact referenced by path and h
 
 ---
 
-## OD-025 — Page-break ayah encoding in the official dataset
+## OD-025 — Page-break ayah encoding · **RESOLVED 2026-10-29**
 
-**Question.** The KFGQPC row shape is one `page` plus `line_start`/`line_end`. When an ayah continues past the bottom of its page, does the dataset:
+**Question was.** Does the KFGQPC row shape (`page` + `line_start`/`line_end`) let an ayah continue past the bottom of its page, or does it clamp/split?
 
-- **A)** let `line_end` exceed `lines_count(page)` (overflow encodes the continuation), or
-- **B)** clamp/split so that `line_end ≤ lines_count(page)` always holds?
+**Answer, measured on the real artifact** (`kfgqpc_hafs_v30`, SHA-256 `227e6b15…f245`, 6,236 rows):
 
-**Why it matters.** Under A, the importer can reconstruct exact coordinates by walking forward. Under B, a page-break ayah would be silently truncated and every range ending on one would be under-measured. The two cases require different handling, and guessing produces plausible-but-wrong numbers — the worst failure mode for this system.
+| Test | Result |
+|---|---|
+| Rows with `line_end > 15` (overflow encoding) | **0** |
+| Same `(sura, aya)` on two pages (split encoding) | **0** |
+| Longest ayah 2:282 (1,193 chars) | page 48, lines 1–15 — exactly one page |
+| chars per covered line | median 52 · p99 92 · **max 108** |
+| Ayahs above 120 chars/line | **0** |
 
-**Action (Phase 2, before import sign-off).**
-1. Inspect the artifact for `line_end > lines_count(page)` occurrences and count them.
-2. Compare at least 5 candidates against the printed mushaf.
-3. Record the result in `validation_report` and in `quran-data.md` §6 (replace the A/B wording with the observed behaviour).
-4. If the count is zero, prove it — do not assume it.
+**Conclusion:** in this edition every ayah is contained within a single page — page breaks fall on ayah boundaries. Nothing is truncated: a clamped ayah would show a chars-per-line spike far above the distribution, and none exists.
 
-**Recommendation:** implement the normalisation rule already specified (`quran-data.md` §6) so both encodings are handled, then verify empirically which one the artifact actually uses.
+**Residual risk, kept on purpose.** The schema still cannot *express* a spanning ayah, and absence was proven statistically, not structurally. Therefore A+ (`page_start/line_start/page_end/line_end`) remains the model, so a future edition with a spanning ayah is representable without a schema change.
 
-**Blocks:** Phase 2 import sign-off — not the start of Phase 2 work. The measurement engine can be built against synthetic fixtures before the artifact is in hand.
+**Applied to:** `quran-data.md` §6 · `quran-data-model.md` §2.4 · `quran-validation-report.md` §6 · `business-rules.md` BR-QRN-12.
 
 ---
 
-## OD-026 — Which Madinah edition is the reference layout · **OPEN — BLOCKING**
+## OD-026 — Reference edition · **RESOLVED 2026-10-29**
 
-**Question.** "The Madinah Mushaf" is not one layout. The 1405 AH (old Madina) and 1441 AH prints break lines differently on roughly **37% of lines** — only 5,658 of 9,046 lines share a word count, per `quran-madina-html`'s own measurements. The same ayah range therefore measures to different page amounts depending on the print.
+**Decision.** The canonical edition of Tahfeez is fixed and explicit — not "the Madinah Mushaf" in general:
 
-**Options.**
-1. **1441 AH** — the current KFGQPC print (QCF4 data).
-2. **1405 AH** — the older print still used by many centers and by `quran-madina-layout`.
-3. **Both**, as two dataset versions selectable per center.
+| Attribute | Value |
+|---|---|
+| Mushaf | مصحف المدينة النبوية — Madinah Mushaf |
+| Edition | **1405 AH** (الطبعة القديمة) |
+| Riwayah | Hafs ʿan ʿAsim |
+| Script | Uthmani (الرسم العثماني) |
+| Pages | 604 |
+| Lines per page | **15** — a *property of this edition*, not a formula |
 
-**Why it is blocking.** Without an edition, the dataset is not comparable with anything: a student's 2.5 pages could become 2.4 after an "upgrade" with no code change and no error. It also decides which artifact to fetch.
+Canonical identifier: **`madinah_1405h_hafs_uthmani`** — stored in `quran_dataset_versions.edition`.
 
-**Recommendation:** ask the pilot center which physical print its teachers actually hold, then pin that edition. Default assumption for a new center is **1441 AH** (current print), but it must be confirmed, not assumed. Option 3 is architecturally supported already (edition is part of the dataset version) and should be adopted only if centers genuinely differ.
+**The 15-line fact is descriptive, never computational.** The measurement engine MUST NOT contain `covered_lines / 15`. It divides by `lines_count(page)` read from the imported dataset, which happens to be 15 on every page of this edition. If a future edition has 14 or 16 lines on some pages, the formula must still be correct without a code change (BR-QRN-09, ADR-0003).
 
-**Consequences:** `quran_dataset_versions.edition` is mandatory; switching edition creates a new dataset version and never rewrites history; reports must state the edition they were measured under.
+**Consequences.**
+
+- The edition is part of the dataset identity; two datasets are comparable only if the identifier matches.
+- Switching edition (e.g. to 1441 AH) creates a new dataset version. It never rewrites existing records, and amounts measured under different editions are not comparable (BR-QRN-10).
+- Reports must state the edition they were measured under.
+- **Verification requirement (VR-EDITION):** the edition must be *proved from the artifact*, not assumed from the fact that it is "official". If the artifact carries no metadata identifying the edition, the gap is recorded as a verification requirement and the artifact is not activated on the strength of its name alone.
+
+**Verification outcome (2026-10-29) — the decision stands, the artifact does not match.**
+The only official KFGQPC Hafs artifact available (`kfgqpc_hafs_v30`, 6,236 rows, SHA-256 `227e6b15…f245`) declares **no edition**, and its line breaks match the **1441 AH** layout 100% on juz 30 (564 ayahs) while matching the 1405 AH layout on only 20.9% of line spans. It therefore **cannot** serve as the canonical 1405H dataset. `validation_status = failed`; no snapshot was created. Resolution requires **OD-029**.
+
+**Applied to:** `quran-data.md` §2, §3 · `quran-data-model.md` §2.1 · `quran-data-sources-comparison.md` · `quran-validation-plan.md` §2 (S-04) · `database.md` · `business-rules.md` BR-QRN-10, BR-QRN-13 · `roadmap.md` Phase 2 · `testing.md` · ADR-0003, ADR-0008 · `quran-validation-report.md`.
 
 ---
 
@@ -372,3 +388,30 @@ Until then: development uses a locally fetched artifact referenced by path and h
 **Recommendation:** option 1. It keeps the licence surface clean, avoids a font dependency we do not control, and reuses the coordinates we already validate. Option 2 would force a copyleft obligation onto a shipped asset and is incompatible with a proprietary product unless isolated and disclosed.
 
 **Blocks:** post-MVP. Requires its own ADR and a per-asset licence clearance before any bundling.
+
+---
+
+## OD-029 — Edition conflict: canonical 1405H vs the available official artifact · **OPEN — BLOCKING**
+
+**Situation.** OD-026 pinned the canonical edition to **1405 AH**. The only official KFGQPC Hafs artifact reachable from the developer platform is `kfgqpc_hafs_v30`, and it does **not** describe that print:
+
+| Test (juz 30, 564 ayahs) | vs 1405H layout | vs 1441H layout |
+|---|---|---|
+| Same page | 92.4% | **100.0%** |
+| Same line span | 20.9% | **100.0%** |
+
+Both references come from one project and one pipeline, so tooling cannot explain the gap. The artifact also carries **no edition metadata** in any of its seven formats — the edition can only be established by comparison, and the comparison says 1441H.
+
+The **text, riwayah and script are unaffected**: this is purely a page/line coordinate question. What changes is how much a given ayah range "weighs" in pages.
+
+**Options.**
+
+| # | Option | Cost | Consequence |
+|---|---|---|---|
+| A | **Change the canonical edition to 1441H** and adopt this artifact | lowest | Reverses OD-026; every amount is measured against the current print; must be approved explicitly, not assumed |
+| B | **Keep 1405H**, obtain a 1405H artifact from KFGQPC | medium | Requires confirming that KFGQPC publishes 1405H developer data at all — the platform currently exposes one Hafs dataset, not a per-edition choice |
+| C | **Keep 1405H**, build the coordinate table in-house from a licensed 1405H source | highest | Months of typography work; needs its own validation; duplicates what KFGQPC already does for 1441H |
+
+**Recommendation.** Ask KFGQPC directly (option B) before paying for C. If 1405H data is not published, the choice is between A (cheap, changes the reference print) and C (expensive, preserves the decision). Do **not** silently adopt A: the print a center uses is a product fact, not an implementation detail — teachers compare the app against the physical mushaf in their hands.
+
+**Blocks:** Phase 2 import. Until resolved, no dataset can be activated and `validation_status` stays `failed` for the canonical edition.

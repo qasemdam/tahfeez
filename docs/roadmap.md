@@ -45,7 +45,8 @@ Exit criteria: `make up && make test` green from a clean clone; CI green on PR.
 ## Phase 2 — Quran dataset & measurement engine
 
 **Branch:** `feature/quran-data`
-**Depends on:** KFGQPC artifact in hand (ADR-0008) · **OD-026** (edition) before import · **OD-025** for import sign-off · licensing gate for bundling only
+**Depends on:** edition conflict resolved (**OD-029**, blocking) · licensing gate for bundling only
+**Status (2026-10-29):** artifact obtained and validated — 12/12 structural checks pass, but it encodes 1441H, not the canonical 1405H. Import is blocked pending OD-029. See `quran-validation-report.md`.
 **Goal:** the measurement engine, proven before anything depends on it.
 
 Deliverables
@@ -61,7 +62,7 @@ Deliverables
 Tests: golden vectors in both languages, additivity/monotonicity properties, importer rejection cases for each V-check, irregular-height page, page-spanning ayah, cross-surah range, dataset-version isolation (import v2 → v1 records unchanged).
 Exit criteria: both implementations pass the identical fixture file; importer fails loudly on a corrupted dataset; activating a new version leaves historical amounts untouched.
 
-**Note:** development may start against synthetic fixtures before the official artifact is fetched; only **import sign-off** depends on OD-025 and the provenance record.
+**Note:** the measurement engine can be built against synthetic fixtures and the verified structural findings (page heights 8/15, decoration lines) before a canonical artifact is settled; only **import sign-off** depends on OD-029 and the provenance record.
 
 **This phase is the correctness backbone.** A measurement bug discovered in Phase 6 invalidates every stored record.
 

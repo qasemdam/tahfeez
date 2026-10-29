@@ -16,10 +16,11 @@ Inspected at pinned commits:
 
 1. **Neither layout project is a measurement source.** Both are *rendering* datasets: they answer "how does this line look on this page", not "which page and line does this ayah occupy". Tahfeez needs the latter, and the KFGQPC official dataset already provides it directly.
 2. **Both projects hardcode the page as 15 lines** (`range(1, 16)` in the reference engine, `line_1to15` in the schema, `15 Lines/Page` in the skill spec). That is correct for the 1405 AH print and exactly the assumption Tahfeez must not inherit (BR-QRN-09).
-3. **The "Madinah Mushaf" is not one layout.** The 1405 AH and 1441 AH prints break lines differently on roughly 37% of lines — only 5,658 of 9,046 lines share a word count, per the project's own measurements. Page measurement is therefore **edition-dependent** — a decision Tahfeez has not yet made. **OD-026.**
+3. **The "Madinah Mushaf" is not one layout.** The 1405 AH and 1441 AH prints break lines differently on roughly 37% of lines — only 5,658 of 9,046 lines share a word count, per the project's own measurements. Page measurement is therefore **edition-dependent**. Tahfeez has now pinned **`madinah_1405h_hafs_uthmani`** (OD-026, resolved 2026-10-29).
 4. **Neither dataset can represent an ayah that crosses a page break.** Each ayah carries one `page` field and line numbers `1…15`. In the sampled shards no page-final line ends mid-ayah, and no page boundary repeats an ayah. Whether that reflects the print or the model is unverifiable from software alone — **OD-025 stays open and blocking for import sign-off.**
 5. **There is a licensing conflict between the two repositories.** `quran-madina-html` licenses *code and assets* under **Waqf GPL 2.0** (a copyleft licence: modified redistributions must stay under it). `quran-madina-layout` claims **MIT** and states its datasets are "derived from quran-madina-html (MIT License)" — but it ships files that appear to be the same v1 databases (identical filenames, byte sizes within 1 byte). **BLOCKER-01.**
 6. **Recommendation: A — King Fahd only for master data.** Option B is acceptable *later*, and only as a separate, separately-licensed presentation layer that never feeds the measurement tables. Option C is rejected.
+7. **The official artifact is 1441H, not 1405H** — measured, not assumed: 100% line-break match with the 1441H layout on juz 30, 20.9% with 1405H. The 1405H print is not published on the developer platform. **OD-029.**
 
 ---
 
@@ -167,6 +168,17 @@ Each layer has a **different** licence. That is the core licensing problem, not 
 | F6 | Word numbering has conventions (basmala = 4 words, sura name not counted, At-Tawba none) | If Level C is ever added, these rules must be specified, not assumed |
 | F7 | Repo 1's data appears copied from repo 2's v1 assets, under a different licence | Licence conflict — BLOCKER-01 |
 
+### 5.1 Empirical confirmation from the real artifact (2026-10-29)
+
+The official KFGQPC Hafs artifact (`kfgqpc_hafs_v30`, 6,236 rows, SHA-256 `227e6b15…f245`) was downloaded and compared against both layouts on juz 30 (564 ayahs):
+
+| Reference | Same page | Same line span |
+|---|---|---|
+| 1441H (repo 2, v2) | **100.0%** | **100.0%** |
+| 1405H (repo 2, v2) | 92.4% | **20.9%** |
+
+Both references share one build pipeline, so tooling cannot explain the gap. **The platform currently publishes the 1441 AH layout.** It does not expose the 1405 AH print as a developer dataset — which turns the edition question from a documentation detail into a blocking product decision (**OD-029**), and means the "1405H is available officially" assumption behind OD-026 does not hold.
+
 ---
 
 ## 6. Precision levels A / B / C / D
@@ -224,7 +236,7 @@ Line widths, gaps, per-word scale, font features, kashida placement — everythi
 | Ayah | ✅ | ✅ (internal index, +1 offset) | ✅ (same) | ✅ |
 | Word | ❌ (not in field list) | ❌ (text segments, no word ids) | ⚠️ implicit in spans | ✅ (text only) |
 | Layout | ❌ | ✅ (stretch factors) | ✅ (widths, gaps, scales, features) | ❌ |
-| Edition | **must be pinned** | 1405 AH | 1441H default; 1405H, IndoPak | n/a |
+| Edition | **pinned: `madinah_1405h_hafs_uthmani`** (OD-026) | 1405 AH | 1441H default; 1405H, IndoPak | n/a |
 | Versioning | per import | `content_hash` per DB | per release | 1.1 |
 | Licence | to be recorded (OD-005) | MIT claimed — **disputed** | Waqf GPL 2.0 | own terms |
 | Redistribution | must be verified | **blocked pending BLOCKER-01** | copyleft; modified redistributions stay under Waqf | verify before any redistribution |
@@ -309,7 +321,7 @@ Then, if and when a printed-page reader is funded, **B in the narrow sense**: KF
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | Edition ambiguity (1405H vs 1441H) changes measured amounts | **OD-026** — pin edition in the dataset version before import |
+| R1 | Edition ambiguity (1405H vs 1441H) changes measured amounts | **Resolved (OD-026)** — edition pinned to `madinah_1405h_hafs_uthmani`; each artifact must still *prove* its edition (VR-EDITION) |
 | R2 | Page-spanning ayahs unrepresentable in every available source | **OD-025** — verify against the printed mushaf, not against software |
 | R3 | Someone "just imports" a layout DB later for convenience | ADR-0009 + BR-QRN-10: layout data never enters measurement tables |
 | R4 | Font bundled without terms | BLOCKER-02, provenance record per asset |

@@ -15,7 +15,7 @@ No application code exists yet. See [`docs/README.md`](docs/README.md) for the r
 |---|---|---|
 | 0 | Architecture, data model, API, sync, security, testing, roadmap | ✅ delivered |
 | 1 | Project foundation (Laravel + Flutter skeletons, auth, CI) | ⏸ blocked on environment |
-| 2 | Quran dataset & page measurement | ▶ ready — KFGQPC source decided, import pending OD-026 (edition) + OD-025 |
+| 2 | Quran dataset & page measurement | ⚠ verified — artifact passes all structural checks but is 1441H, not the canonical 1405H (OD-029) |
 | 3–10 | Students → Records → Attendance → Evaluation → Reports → Sync → Release | planned |
 
 ---
@@ -67,6 +67,7 @@ Directories are created in Phase 1; Phase 0 ships documentation only.
 | [docs/quran-data-model.md](docs/quran-data-model.md) | Minimum data model (level A+) |
 | [docs/quran-data-sources-comparison.md](docs/quran-data-sources-comparison.md) | Study of the two Madinah-layout projects vs KFGQPC + licensing matrix |
 | [docs/quran-validation-plan.md](docs/quran-validation-plan.md) | Import gate execution & sign-off |
+| [docs/quran-validation-report.md](docs/quran-validation-report.md) | First run against the official artifact (structural PASS, edition FAIL) |
 | [docs/quran-source-record.md](docs/quran-source-record.md) | Provenance & licensing record |
 | [docs/evaluation.md](docs/evaluation.md) | Evaluation engine |
 | [docs/offline-sync.md](docs/offline-sync.md) | Sync protocol & conflicts |

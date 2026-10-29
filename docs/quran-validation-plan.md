@@ -24,11 +24,24 @@ Three principles:
 | S-01 | Record the exact artifact URL, retrieval timestamp, byte size | `quran-source-record.md` |
 | S-02 | Compute SHA-256 of the raw bytes and store it | `checksum_sha256` |
 | S-03 | Retain the raw artifact unchanged (path + hash), outside git | artifact store |
-| S-04 | Identify the **edition** (1405 AH / 1441 AH / other) from the source's own metadata | `edition` field (**OD-026**) |
+| S-04 | Prove the artifact is the canonical edition `madinah_1405h_hafs_uthmani` (1405 AH / Hafs / Uthmani / 604 pages) from the source's own metadata **and** from structural evidence (VR-EDITION, §2.1) | `edition` field + evidence note |
 | S-05 | Record the licence/usage terms verbatim | provenance record |
 | S-06 | Confirm the format matches a supported parser | import log |
 
-**S-04 is not optional.** The 1405 AH and 1441 AH prints break lines differently on ~37% of lines. A dataset without a recorded edition cannot be compared with anything.
+**S-04 is not optional.** The 1405 AH and 1441 AH prints break lines differently on ~37% of lines. A dataset without a proven edition cannot be compared with anything.
+
+### 2.1 VR-EDITION — proving the edition
+
+The fact that an artifact is "official KFGQPC data" does **not** prove which print it describes. Evidence must be gathered, in this order:
+
+| # | Evidence | Weight |
+|---|---|---|
+| E1 | Explicit edition statement in the artifact (readme, manifest, metadata column) | decisive |
+| E2 | Page count = 604 **and** line counts per page = 15 for every page | strong, not decisive (1441H shares both) |
+| E3 | Line-break comparison against a known 1405H reference for a sample of pages | decisive when a reference exists |
+| E4 | Line-break comparison against a known 1441H reference — must **differ** | corroborating |
+
+If E1 and E3 are both unavailable, the artifact is **not** activatable as the canonical edition: record the gap as a verification requirement, keep `validation_status = failed` (or `pending`), and escalate. Do not infer the edition from the vendor's name, from the URL, or from "it looks like the old print".
 
 ---
 
@@ -191,3 +204,23 @@ Because records store `quran_dataset_version_id`, a bad activation is recoverabl
 | N-01, N-02 | `Feature/Quran/DatasetProfileTest` (assertions on the report, not on the data) |
 | Measurement | `Unit/Quran/PageMeasurementTest` + Dart mirror |
 | Version isolation | `Feature/Quran/VersionIsolationTest` — import v2, assert v1 records unchanged |
+
+---
+
+## 10. First execution — 2026-10-29
+
+Run against `kfgqpc_hafs_v30` (10,155,774 bytes, SHA-256 `227e6b15…f635f245`). Full results: [`quran-validation-report.md`](quran-validation-report.md).
+
+| Stage | Outcome |
+|---|---|
+| S-01…S-03, S-05, S-06 | complete — provenance recorded |
+| **S-04 / VR-EDITION** | **FAILED** — no edition metadata; line-break comparison shows 1441H, not 1405H |
+| V-01…V-12 | **PASS** (12/12) |
+| N-01 (page-break count) | 0 — and statistically proven, not assumed |
+| N-02 (page heights) | **8 lines on pages 1–2**, 15 elsewhere; 57 pages carry 2 decoration lines |
+| Licence | **BLOCKED** — no terms published |
+
+Two lessons were folded back into this plan:
+
+1. **Page height must not be derived from ayah coverage** (§3 V-05 now reads `lines_count(page)` = physical height). Coverage-based counting reports 13 instead of 15 on surah-start pages.
+2. **A structural PASS is not an edition PASS.** All twelve checks passed on an artifact that describes the wrong print — which is precisely why S-04 is a separate, blocking gate.

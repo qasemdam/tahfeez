@@ -31,6 +31,24 @@ When every covered page happens to share a height, the formula reduces to `lines
 ## Amendment (2026-10-28)
 The original decision divided by a fixed page height. Review round 1 established that page structure must be data-driven, so the formula became a sum of page fractions. The change is strictly more general: for uniform pages the result is identical, and for irregular pages it is correct where the old formula was not.
 
+## Amendment 2 (2026-10-29) — what `lines_count` actually is
+
+Measured on the real KFGQPC artifact (see `quran-validation-report.md`):
+
+| Observation | Value |
+|---|---|
+| Pages reaching line 15 | 602 |
+| Pages reaching line 8 | 2 (pages 1–2) |
+| Pages with 2 lines uncovered by ayahs | 57 (surah title + basmala) |
+
+Consequences:
+
+- **`lines_count(page)` is the physical page height**, seeded from the edition specification (15, with 8 on pages 1–2). It is **not** the count of lines covered by ayah records — that yields 13 on a surah-start page and would inflate measurements taken there by ~15%.
+- The formula `amount_pages = Σ covered(p) / lines_count(p)` is **unchanged and correct**. Only the source of the denominator is clarified.
+- Mandatory fixtures: page 1 (8 lines), page 2 (8 lines), a surah-start page (13 covered / 15 physical), and 2:282 (page 48, lines 1–15 → exactly 1.0 page).
+
+No change to A+, no change to the formula, no change to the 250% rule.
+
 ## Alternatives rejected
 - **Ayah count × average per page** — wrong for short surahs and mid-page starts.
 - **`last_page − first_page + 1`** — off by up to a full page for mid-page ranges.

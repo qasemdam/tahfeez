@@ -1,30 +1,43 @@
 # Quran Dataset — Source & Provenance Record
 
-Status: **Incomplete — no artifact fetched yet**
+Status: **Artifact inspected — validation failed on edition, licence unresolved**
 Required by: `quran-data.md` §12 · BR-QRN-08 · OD-005 (licensing gate)
+Full results: [`quran-validation-report.md`](quran-validation-report.md)
 
 No Quran artifact may be imported into a production environment until this record is complete for that artifact.
 
 ---
 
-## 1. Current status
+## 1. Recorded artifact — KFGQPC Hafs v3.0
 
 | Field | Value |
 |---|---|
-| Source | King Fahd Quran Printing Complex — official developer platform |
-| Source URL | https://qurancomplex.gov.sa/quran-dev/ |
-| Dataset / version | **not yet recorded** |
-| Format selected | **not yet decided** (CSV / JSON / SQL / XML / TXT / XLSX) |
-| Download date | **not yet recorded** |
-| SHA-256 checksum | **not yet recorded** |
-| Ayah count / page count | **not yet verified** |
-| Attribution requirements | **not yet documented** |
-| License / usage terms | **not yet documented** |
-| Font (Uthmani) source & licence | **not yet documented** |
-| Reviewed by | — |
-| Review date | — |
+| Source | King Fahd Glorious Quran Printing Complex — developer platform |
+| Page | https://qurancomplex.gov.sa/quran-dev/ |
+| Artifact URL | `https://download.qurancomplex.gov.sa/resources_dev/kfgqpc_hafs_v30.zip` |
+| Dataset / version | `kfgqpc_hafs_v30` (v3.0); SQL dump dated 2026-09-30 14:21 |
+| Format selected | JSON (`kfgqpc_hafs_v30-data/kfgqpc_hafs_v30.json`) — CSV/SQL/TXT/XLSX/XML/HTML also present |
+| Download date | 2026-10-29 |
+| Size | 10,155,774 bytes |
+| SHA-256 | `227e6b1564d980f2bd09c2c35ebfb0330ac268c79a7c247cd1ab665bc635f245` |
+| Archive integrity | OK |
+| Ayah count / page count | 6,236 / 604 — verified |
+| **Edition (declared)** | **none — no edition field in any of the seven formats** |
+| **Edition (determined)** | **1441 AH layout** (juz-30 line-break comparison: 100% vs 1441H, 20.9% vs 1405H) |
+| Riwayah | Hafs ʿan ʿAsim (declared, and consistent) |
+| Script | Uthmani (declared, and consistent) |
+| Attribution requirements | **not stated by the source** |
+| License / usage terms | **none published**; site footer asserts "جميع الحقوق محفوظة © 2026" |
+| Font (`.ttf`) terms | **not stated** — separate asset, separate question |
+| Reviewed by | Phase 0 verification run |
+| Review date | 2026-10-29 |
 
-**Blocking:** the "License / usage terms" and "Attribution requirements" rows must be filled and reviewed before the dataset is committed to the repository or bundled into a shipped application. Until then, development uses a locally fetched copy referenced by path and hash only.
+**Status: BLOCKED on two independent grounds.**
+
+1. **Edition mismatch.** The canonical edition is `madinah_1405h_hafs_uthmani` (OD-026). This artifact encodes the 1441H layout. It cannot be activated as the canonical dataset.
+2. **Licence.** No terms are published, and the site asserts all rights reserved. "Official" is not a licence, and "can be used in application development" is not a redistribution grant. The artifact must not be committed to the repository or bundled into a shipped build.
+
+The artifact is held locally, outside the repository (`.gitignore` excludes `data/quran/*`).
 
 ---
 
