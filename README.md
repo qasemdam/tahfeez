@@ -68,7 +68,7 @@ Directories are created in Phase 1; Phase 0 ships documentation only.
 | [docs/quran-data-sources-comparison.md](docs/quran-data-sources-comparison.md) | Study of the two Madinah-layout projects vs KFGQPC + licensing matrix |
 | [docs/quran-validation-plan.md](docs/quran-validation-plan.md) | Import gate execution & sign-off |
 | [docs/quran-validation-report.md](docs/quran-validation-report.md) | First run against the official artifact (structural PASS, edition FAIL) |
-| [docs/quran-1405h-sourcing.md](docs/quran-1405h-sourcing.md) | Is 1405H data obtainable officially? (no) + request template |
+| [docs/quran-1405h-sourcing.md](docs/quran-1405h-sourcing.md) | Official request package to KFGQPC (letter, email, technical annex, licensing) |
 | [docs/quran-source-record.md](docs/quran-source-record.md) | Provenance & licensing record |
 | [docs/evaluation.md](docs/evaluation.md) | Evaluation engine |
 | [docs/offline-sync.md](docs/offline-sync.md) | Sync protocol & conflicts |

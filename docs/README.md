@@ -18,7 +18,7 @@ No application code has been written. This is intentional: the master instructio
 | 6 | [`quran-data-sources-comparison.md`](quran-data-sources-comparison.md) | Engineering study of the two layout projects vs. KFGQPC, with the licensing matrix |
 | 7 | [`quran-validation-plan.md`](quran-validation-plan.md) | How the import gate is executed, evidenced and signed off |
 | 8 | [`quran-validation-report.md`](quran-validation-report.md) | **First real run against the official artifact — structural PASS, edition FAIL** |
-| 9 | [`quran-1405h-sourcing.md`](quran-1405h-sourcing.md) | **Official-channel investigation: is 1405H data obtainable? (no) + request template** |
+| 9 | [`quran-1405h-sourcing.md`](quran-1405h-sourcing.md) | **Official request package to KFGQPC** — letter, email, technical annex, licensing questions |
 | 10 | [`quran-source-record.md`](quran-source-record.md) | Provenance, attribution and licensing record for each imported dataset |
 | 11 | [`evaluation.md`](evaluation.md) | Baseline + advanced evaluation, period configuration, snapshots, determinism |
 | 12 | [`offline-sync.md`](offline-sync.md) | Outbox, push/pull protocol, conflict matrix |
@@ -56,7 +56,7 @@ Records are events (keep both), attendance is state (human decides), approved ev
 | ID | Decision | Blocks |
 |---|---|---|
 | OD-018 | Dependency versions | **Phase 1** |
-| OD-029 | **Edition conflict** — canonical 1405H vs the only official artifact (1441H); no 1405H dataset published | **Phase 2 import** |
+| OD-029 | **Edition conflict** — no official artifact proven to represent the 1405H edition; written inquiry prepared | **Phase 2 import** |
 | OD-001 | Age representation | Phase 3 |
 | OD-004 | Rounding of measured pages | Phase 6 |
 | OD-009 | Missing-data policy | Phase 6 |

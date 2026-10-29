@@ -1,176 +1,217 @@
-# Sourcing 1405H Data — Official Channel Investigation
+# 1405H Data — Official Request Package
 
-**Date:** 2026-10-29 · **Phase:** 0 (research only) · **Status:** **No official 1405H dataset found**
-Related: OD-029 · `quran-validation-report.md` · `quran-source-record.md`
-
----
-
-## 1. The question
-
-Can Tahfeez obtain **official** KFGQPC data for the **1405 AH** Madinah print — not just the text, but page/line coordinates (`ayah → page, line_start, line_end`) — so that memorization amounts are measured against the print the centers actually use?
-
-## 2. The answer
-
-**No. As of 2026-10-29, KFGQPC publishes no 1405H page/line dataset.**
-
-The developer platform exposes exactly **one** Hafs dataset, and it is aligned with the **1441 AH** print (verified: 100% line-break match on juz 30 vs 1405H's 20.9%). No edition selector, no archive of older prints, no metadata field, no API.
-
-This does **not** mean the data does not exist internally — KFGQPC prints the 1405H mushaf and built a desktop publishing application around the Madinah text. It means it is **not published for developers**, and must be requested.
+**Status:** prepared, **not sent** · 2026-10-29 · Phase 0
+**Purpose:** obtain, in writing, the page/line coordinates and the usage terms for the Madinah print Tahfeez is pinned to.
+**Related:** OD-029 · `quran-validation-report.md` · `quran-source-record.md` · ADR-0008
 
 ---
 
-## 3. What was searched
+## Part A — Why this request exists (summary of evidence)
 
-All sources below are official KFGQPC properties. GitHub, forums and third-party mirrors were deliberately excluded as evidence of official availability.
+A full sweep of KFGQPC's official channels on 2026-10-29 established that **no page/line dataset for the reference print is published**.
 
-| # | Source | URL | What it is | Result |
-|---|---|---|---|---|
-| 1 | Developer platform | `qurancomplex.gov.sa/quran-dev/` | Official developer data hub | **14 cards / 11 download links.** 9 Quran datasets (Hafs, Warsh, Shubah, Qaloun, Duri, Susi, Bazzi, + smart-device fonts), 2 fonts, 3 tafsir/tajweed docs. **No edition selector. Zero occurrences of "1405" or "1441"** (checked with both Latin and Arabic-Indic digits) |
-| 2 | Hafs artifact itself | `download.qurancomplex.gov.sa/resources_dev/kfgqpc_hafs_v30.zip` | 7 formats + font + docx + pdf | **No readme, no manifest, no metadata, no edition field.** docx = plain Quran text only. PDF = 604 pages, text-based, no document metadata |
-| 3 | Download host | `download.qurancomplex.gov.sa/resources_dev/` | File host | Directory listing **403 Forbidden** — no browsing, no way to discover unpublished artifacts |
-| 4 | Site search (WP REST) | `qurancomplex.gov.sa/wp-json/wp/v2/search?search=1405` | Official site index | 6 results, all corporate/history pages. No dataset |
-| 5 | Productions page | `qurancomplex.gov.sa/productions/` | Production & distribution history | "1405" appears **once**: *"بدأ المجمع توزيع إصداراته … منذ عام 1405هـ"* — the **founding/distribution year**, not an edition dataset |
-| 6 | Hafs editions sales page | `qurancomplex.gov.sa/sales/hafs/` | Printed editions for sale | Product listing; **no edition year, no data** |
-| 7 | Publications & contact | `qurancomplex.gov.sa/epub-info/` | Apps + editions + contact | Links to apps and sales; **no dataset, no edition metadata** |
-| 8 | Contact page | `qurancomplex.gov.sa/contact/` | Official contact | Address, phones, `info@qurancomplex.gov.sa` |
-| 9 | Content embedding service | `qurancomplex.gov.sa/embed-isdarat/` | Embed mushaf on a website | Display widget for "رواياته وإصداراته" — **no data export, no API, no terms** |
-| 10 | Digital publishing site | `nashr.qurancomplex.gov.sa` | مصحف المدينة النبوية للنشر الحاسوبي | Windows desktop app **v3.16, 134 MB**, fonts for Hafs & Warsh for publishing. **Not a dataset**; see §6 |
-| 11 | Open data portal | `od.data.gov.sa` | Saudi national open data | **Unreachable from this environment** (proxy 502). Unverified — see §7 |
+| Checked | Outcome |
+|---|---|
+| Developer platform `qurancomplex.gov.sa/quran-dev/` | One Hafs dataset; no edition selector; the strings "1405"/"1441" do not appear (checked with Latin and Arabic-Indic digits) |
+| The published artifact, all 7 formats + docx + pdf | No edition metadata of any kind |
+| `download.qurancomplex.gov.sa/resources_dev/` | Directory listing 403 — unpublished files cannot be discovered |
+| Official site search, productions, sales, publications | Only the complex's **founding year** (1405 AH), not a dataset |
+| `nashr.qurancomplex.gov.sa` | Desktop publishing application v3.16 — not a dataset; EULA unreviewed |
+| `od.data.gov.sa` | Unreachable from this environment — manual check pending |
 
-### Search terms used
-`1405`, `1441`, `١٤٠٥`, `١٤٤١`, `۰۱۴۰۵` (mixed digit forms), `طبعة`, `الطبعة`, `إصدار`, `نسخة` — across the developer page, productions, sales, publications and contact pages. Only the founding-year sentence matched.
-
----
-
-## 4. Why "Hafs + Uthmani + 604 pages" is not enough
-
-The instruction is explicit and the evidence supports it. Three properties are shared by **both** Madinah prints:
-
-- 604 pages ✓ (both)
-- 15 lines per page ✓ (both, with 8-line opening pages)
-- Hafs ʿan ʿAsim, Uthmani script ✓ (both)
-
-The only discriminating signal is the **line-break pattern**, and that is where the official artifact fails the 1405H test:
+The published Hafs artifact was measured against both known layouts (juz 30, 564 ayahs):
 
 | Reference | Same page | Same line span |
 |---|---|---|
 | 1441H | 100.0% | **100.0%** |
 | 1405H | 92.4% | **20.9%** |
 
-So an artifact cannot be accepted as 1405H on the basis of page count, line count, riwayah or publisher. It needs either explicit metadata (absent) or a line-break match (fails).
+**Conclusion:** the published data describes the 1441 AH print. The reference print must be requested directly.
 
 ---
 
-## 5. Why other sources are not "official"
+## Part B — The request package
 
-| Source | Why it cannot be the official source |
-|---|---|
-| `quran-madina-layout` | Third-party MIT project over data derived from `quran-madina-html`; licence conflict (BLOCKER-01); 1405H layout is DigitalKhatt-derived, not KFGQPC-published |
-| `quran-madina-html` | Third-party, Waqf GPL 2.0; 1405H layout from DigitalKhatt (MIT code / OFL fonts), not from KFGQPC |
-| Tanzil | Text corpus only — no page/line coordinates. Cross-validation source at best |
-| `quran-qcf4` (npm, MIT) | KFGQPC **1441H** page data republished by a third party; not 1405H, and not the primary source |
+Three artefacts, to be used together:
 
-None of these can be presented to a center as "the official 1405H data", and adopting one would contradict ADR-0008 (KFGQPC as the sole master source).
-
----
-
-## 6. The digital publishing application — a lead, not a source
-
-`nashr.qurancomplex.gov.sa` distributes **مصحف المدينة النبوية للنشر الحاسوبي** v3.16 (Windows, 134 MB), described as providing the Uthmani text for the Madinah mushaf in Hafs and Warsh for publishing purposes.
-
-Why it is **not** treated as a data source here:
-
-1. It is an **application**, not a dataset — its internal format is undocumented.
-2. Extracting page/line tables from a binary would be reverse-engineering, not sourcing.
-3. Its EULA has not been reviewed; "free to download" ≠ "free to extract and redistribute".
-4. Its edition is not stated on the page — the same ambiguity as the JSON artifact.
-
-**Recorded as a lead only.** If it turns out to contain a 1405H coordinate table, using it still requires written permission. It is not a workaround.
-
----
-
-## 7. What could not be verified
-
-| Item | Reason | Consequence |
+| # | Artefact | Use |
 |---|---|---|
-| `od.data.gov.sa` (national open data) | Not reachable from this environment (proxy 502) | A dataset could exist there. **Must be checked manually before concluding the search is exhaustive** |
-| KFGQPC internal archive | Not public | Only a direct request can establish it |
-| Sales page product details | Page lists products without edition years | Inconclusive, not negative |
+| B.1 | Short email | First contact; short enough to be read |
+| B.2 | Formal letter | Official correspondence, signed and stamped if possible |
+| B.3 | Technical annex | Attached to both; the specification they can act on |
 
-The first item is the only material gap. Everything else was checked directly.
+### B.1 — Short email (ready to send)
+
+**Subject:** طلب بيانات مواضع الآيات (الصفحة والسطر) لمصحف المدينة النبوية — التخطيط المرجعي
+
+> السلام عليكم ورحمة الله وبركاته،
+>
+> نحن فريق تقني يعمل على نظام «تحفيظ» لإدارة مراكز تحفيظ القرآن الكريم. يقيس النظام مقدار حفظ الطالب بمواضع الآيات في المصحف (الصفحة ورقم السطر)، وليس بعدد الآيات أو باسم السورة.
+>
+> نرجو التكرم بتزويدنا — أو بإرشادنا إلى الجهة المختصة — ببيانات مواضع الآيات للمصحف المدينة النبوية بالتخطيط المرجعي، رواية حفص عن عاصم، بالرسم العثماني، 604 صفحات، 15 سطرًا في الصفحة (والصفحتان الأولى والثانية 8 أسطر)، وهو التخطيط الذي يُشار إليه في بعض المصادر التقنية بـ«طبعة 1405هـ». ونرجو بيان المسمّى الرسمي المعتمد لديكم لهذا الإصدار.
+>
+> المطلوب لكل آية: رقم السورة، رقم الآية، صفحة البداية، سطر البداية، صفحة النهاية، سطر النهاية، مع أي بيانات وصفية تثبت الطبعة.
+>
+> ونرجو كذلك إفادتنا كتابيًا بشروط الاستخدام والترخيص، وهل يُسمح بتضمين هذه البيانات داخل تطبيق يُوزَّع للمستخدمين.
+>
+> المواصفات الفنية التفصيلية وأسئلة الترخيص مرفقة في ملف واحد.
+>
+> وتفضلوا بقبول فائق الاحترام.
+>
+> [الاسم] — [الصفة] — [البريد] — [الهاتف]
+
+### B.2 — Formal letter (Arabic, official)
+
+> بسم الله الرحمن الرحيم
+>
+> **إلى:** معالي المشرف العام على مجمع الملك فهد لطباعة المصحف الشريف — حفظه الله
+> **نسخة إلى:** الإدارة المعنية بخدمات المطورين / إدارة تقنية المعلومات
+>
+> **الموضوع:** طلب الحصول على بيانات مواضع الآيات (الصفحة والسطر) لمصحف المدينة النبوية ذي التخطيط المرجعي، وبيان شروط الاستخدام
+>
+> السلام عليكم ورحمة الله وبركاته، وبعد:
+>
+> ننوه بجهود مجمع الملك فهد لطباعة المصحف الشريف في خدمة كتاب الله تعالى، وبما يسّره من منصة للمطورين وبيانات حاسوبية أسهمت في خدمة التطبيقات القرآنية. ونسأل الله أن يجعل ذلك في موازين حسناتكم.
+>
+> نحن فريق تطوير نظام **«تحفيظ»** لإدارة مراكز تحفيظ القرآن الكريم، وهو نظام يهدف إلى مساعدة المحفظين ومديري المراكز على متابعة حفظ الطلاب ومراجعتهم وتسميعهم وحضورهم، وحساب مقدار الحفظ أسبوعيًا بدقة، وإصدار التقارير.
+>
+> ويقوم النظام على مبدأ أساسي، هو أن يُقاس مقدار الحفظ بمواضع الآيات في المصحف — الصفحة ورقم السطر — لا بعدد الآيات ولا باسم السورة. ولا يمكن تحقيق ذلك إلا ببيانات مواضع الآيات المرتبطة بالتخطيط المطبوع للمصحف الذي بين يدي الطلاب والمحفظين، لأن فواصل الأسطر تختلف بين إصدارات المصحف المطبوعة، ويترتب على ذلك اختلاف في مقدار الحفظ المحتسب.
+>
+> ولما كان المصحف المطبوع في المجمع له أكثر من إصدار بتخطيطات مختلفة، فإننا نحرص على تحديد الإصدار المقصود **بخصائصه** لا بمسمّاه، وذلك على النحو الآتي:
+>
+> | الخاصية | الوصف |
+> |---|---|
+> | المصحف | مصحف المدينة النبوية |
+> | الرواية | حفص عن عاصم |
+> | الرسم | الرسم العثماني |
+> | عدد الصفحات | 604 صفحات |
+> | عدد الأسطر | 15 سطرًا في الصفحة، والصفحتان الأولى والثانية 8 أسطر |
+> | التخطيط | التخطيط المرجعي القديم، الذي يُشار إليه في بعض المصادر التقنية بـ«طبعة 1405هـ» |
+>
+> ونؤكد أننا لا نطلب إعادة إصدار نص القرآن الكريم، فهو متوفر ولله الحمد، وإنما نطلب **بيانات المواضع والتخطيط** (أي: موضع بداية الآية ونهايتها على مستوى الصفحة والسطر)، مع ما يثبت هوية الإصدار.
+>
+> **وعليه، نرجو التكرم بما يلي:**
+>
+> 1. تزويدنا ببيانات مواضع الآيات للإصدار الموصوف أعلاه، وفق المواصفات الفنية المرفقة (الملحق أ)، أو إرشادنا إلى الجهة المختصة التي يمكن أن تزوّدنا بها.
+> 2. بيان **المسمّى الرسمي المعتمد لديكم** لهذا الإصدار، حتى نعتمده في توثيقنا بدلًا من التسمية المتداولة «1405هـ».
+> 3. إفادتنا كتابيًا بشروط استخدام هذه البيانات وترخيصها، وفق الأسئلة المرفقة (الملحق ب).
+> 4. وفي حال تعذّر تزويدنا بالبيانات، نرجو التكرم ببيان ذلك كتابيًا، وإفادتنا إن كانت هناك إجراءات أو نماذج معتمدة لطلبها.
+>
+> ونضع أنفسنا رهن إشارتكم لتقديم أي توضيح تقني، ونلتزم بالإشارة إلى مصدر البيانات وبعدم تعديل نص القرآن الكريم بأي حال.
+>
+> وتفضلوا بقبول فائق الاحترام والتقدير.
+>
+> **مقدّم الطلب:** [الاسم]
+> **الصفة:** [المسؤول عن المشروع]
+> **الجهة:** [اسم الجهة]
+> **البريد الإلكتروني:** [البريد]
+> **الهاتف:** [الرقم]
+> **التاريخ:** [التاريخ]
+> **المرفقات:** الملحق (أ) المواصفات الفنية — الملحق (ب) أسئلة الترخيص
+
+### B.3 — Technical annex (الملحق أ)
+
+> **الملحق (أ): المواصفات الفنية المطلوبة**
+>
+> **1. الغرض**
+> حساب مقدار الحفظ من نطاق آيات (من آية إلى آية) بتحويله إلى مقدار بالصفحات، اعتمادًا على التخطيط المطبوع، مع إمكانية التحقق البرمجي من صحة المواضع.
+>
+> **2. الحقول المطلوبة لكل آية**
+>
+> | الحقل | النوع | الوصف |
+> |---|---|---|
+> | `sura_no` | عدد صحيح | رقم السورة 1–114 |
+> | `aya_no` | عدد صحيح | رقم الآية داخل السورة |
+> | `page_start` | عدد صحيح | الصفحة التي تبدأ فيها الآية |
+> | `line_start` | عدد صحيح | رقم السطر الذي تبدأ فيه الآية داخل الصفحة |
+> | `page_end` | عدد صحيح | الصفحة التي تنتهي فيها الآية |
+> | `line_end` | عدد صحيح | رقم السطر الذي تنتهي فيه الآية داخل الصفحة |
+>
+> **3. حقول اختيارية مفيدة**
+> `jozz` · `hizb` · `rub` · علامة السجدة · اسم السورة بالعربية والإنجليزية.
+>
+> **4. جدول الصفحات (مهم)**
+> نرجو تزويدنا بجدول لارتفاعات الصفحات: رقم الصفحة وعدد أسطرها الفعلية. وذلك لأن الصفحتين الأولى والثانية في هذا التخطيط 8 أسطر لا 15، ولا يصح استنتاج ذلك من البيانات.
+>
+> **5. البيانات الوصفية (إلزامية لتوثيق النسخة)**
+> المسمّى الرسمي للإصدار · رقم/تاريخ الإصدار · تاريخ النشر · عدد الصفحات · عدد الآيات · بصمة تحقق (SHA-256) للملف.
+>
+> **6. الصيغة**
+> CSV أو JSON (وSQL مقبول). الترميز UTF-8. أي صيغة أخرى متاحة لديكم مقبولة، وسنتولى التحويل.
+>
+> **7. معايير القبول التي سنطبقها داخليًا**
+> 114 سورة · 6236 آية · ترقيم صفحات متصل 1–604 · لا آيات مفقودة أو مكررة · ترتيب صحيح · `line_start ≤ line_end` · مطابقة عينات محددة مع النسخة المطبوعة · تحقق من البصمة.
+>
+> **8. بيئة الاستخدام**
+> خادم PostgreSQL، وتطبيق Flutter لأندرويد وiOS والويب، مع تخزين محلي للعمل دون اتصال. ولا يُعدَّل نص القرآن الكريم، ولا تُشتق منه نسخة مختلفة.
+
+### B.4 — Licensing questions (الملحق ب)
+
+> **الملحق (ب): أسئلة الترخيص والاستخدام**
+>
+> نرجو التكرم بالإجابة كتابيًا على الأسئلة التالية، لأننا لا نستطيع الاعتماد على البيانات في منتج يُوزَّع دون موافقة موثقة:
+>
+> 1. هل يُسمح باستخدام البيانات داخل تطبيق **تجاري**؟ وداخل تطبيق **غير تجاري**؟ وما الفرق بينهما في الشروط؟
+> 2. هل يُسمح **بإعادة توزيع البيانات داخل التطبيق** الذي نوزّعه على المستخدمين؟
+> 3. هل يُسمح **بتخزين البيانات محليًا** على جهاز المستخدم (للعمل دون اتصال)؟
+> 4. هل يُسمح **بإنشاء نسخة مشتقة** منها (جداول أو فهارس داخلية داخل نظامنا)؟
+> 5. هل يُسمح بتخزين البيانات في قاعدة بيانات **PostgreSQL** على خادمنا؟
+> 6. هل يُسمح باستخدامها في تطبيق **Flutter** يعمل على Android وiOS والويب؟
+> 7. ما **شروط الإسناد (Attribution)** المطلوبة؟ وما الصيغة التي تفضلونها؟
+> 8. ما شروط استخدام **الخطوط** إن كانت مطلوبة مع البيانات؟
+>
+> **أسئلة إضافية:**
+>
+> 9. هل يلزم توقيع اتفاقية أو تعبئة نموذج معتمد؟ ومن الجهة المخوّلة بذلك؟
+> 10. هل توجد قيود على تعديل البيانات أو على طريقة عرضها؟
+> 11. هل هناك متطلبات خاصة عند عرض المصحف في تطبيق (مثل الإشارة إلى المجمع أو عدم إجراء تعديلات على الرسم)؟
+>
+> **ملاحظة:** في حال عدم وضوح أي بند، سنعتبره غير مسموح به حتى يرد ما يفيد خلاف ذلك.
 
 ---
 
-## 8. Official contact channels
+## Part C — Sending
+
+### C.1 — Contact channels (verified 2026-10-29)
 
 | Channel | Detail |
 |---|---|
 | General email | `info@qurancomplex.gov.sa` |
 | Sales & marketing | `mrkt@qurancomplex.gov.sa` |
-| Contact page | https://qurancomplex.gov.sa/contact/ |
+| Contact form | https://qurancomplex.gov.sa/contact/ |
 | Sales contact page | https://qurancomplex.gov.sa/sales-workingtime/ |
 | Phones | +966 14 8615600 · +966 14 8615700 (sales ext. 2444 / 1931 / 1932 / 1934) |
-| Address | Madinah, Tabuk Road, PO Box 6262, 41442, Saudi Arabia |
-| Digital publishing contact | https://nashr.qurancomplex.gov.sa/contact/ |
+| Address | المدينة المنورة، طريق تبوك، ص.ب 6262، الرمز البريدي 41442 |
+| Digital publishing | https://nashr.qurancomplex.gov.sa/contact/ |
 
-**No message has been sent.** This document prepares the request only.
-
-### 8.1 Request to send (Arabic)
-
-> السلام عليكم ورحمة الله وبركاته،
->
-> نحن فريق تقني يعمل على نظام لإدارة مراكز تحفيظ القرآن الكريم، ونعتمد في قياس مقدار الحفظ على مواضع الآيات في مصحف المدينة النبوية.
->
-> نطلب رسميًا الحصول على بيانات **مصحف المدينة النبوية — طبعة 1405هـ — رواية حفص عن عاصم — بالرسم العثماني**، على أن تتضمن بيانات الصفحات والأسطر لكل آية (أو أي بيانات رسمية تسمح بإعادة بناء مواضع الآيات على مستوى الصفحة والسطر).
->
-> ونرجو بيان شروط الاستخدام والترخيص، وهل يُسمح بتضمين هذه البيانات داخل تطبيق يُوزَّع للمستخدمين.
->
-> وتفضلوا بقبول فائق الاحترام.
-
-### 8.2 Technical specification to attach
+### C.2 — Checklist before sending
 
 ```text
-Edition:            Madinah Mushaf, 1405 AH
-Riwayah:            Hafs 'an 'Asim
-Script:             Uthmani
-Pages:              604
-Lines per page:     15 (pages 1–2: 8)
-Required per ayah:  surah_no, aya_no, page_start, line_start, page_end, line_end
-Optional:           juz, hizb, sajda flag, page line-count table
-Format:             CSV or JSON (SQL acceptable)
-Metadata required:  edition identifier, dataset version, publication date, checksum
-Licence required:   permission to bundle in a distributed application;
-                    attribution requirements; redistribution terms; font terms
+[ ] Fill every [placeholder] in B.1 and B.2 (name, role, entity, email, phone, date)
+[ ] Attach B.3 and B.4 as a single PDF named: Tahfeez-Quran-Data-Request.pdf
+[ ] Send to info@ and mrkt@, and submit via the contact form
+[ ] Record: date sent, channel, reference number if any
+[ ] Keep the sent copy and attachments unchanged for the record
+[ ] Diary a follow-up after 14 days
 ```
 
-### 8.3 Why this specification
+**Nothing has been sent. This document prepares the request only.**
 
-- `page_end` / `line_end` are requested explicitly because the current artifact exposes only one `page` per ayah; the A+ model needs both ends to be unambiguous (`quran-data-model.md` §2.4).
-- The page line-count table is requested because pages 1–2 are 8 lines, not 15, and that value must come from the source rather than be assumed.
-- Licence terms are requested in the same message so the answer covers bundling, not just download.
+### C.3 — How to handle the reply
 
----
-
-## 9. Recommendation
-
-1. **Send the request** in §8.1 to `info@` and `mrkt@`, and use the contact form. Ask for a written answer that includes licence terms.
-2. **Check `od.data.gov.sa` manually** — it is the one gap in this search.
-3. **Do not** substitute a third-party 1405H layout, and **do not** reconstruct coordinates ourselves while the request is open.
-4. **Meanwhile**, Phase 2 engineering can proceed against the *verified structural facts* (page heights, decoration lines, measurement formula) using synthetic fixtures — no production dataset required.
-5. If KFGQPC answers "not published", OD-029 reduces to: switch the canonical edition to 1441H (cheap, changes the reference print) or build 1405H coordinates in-house (expensive, preserves the decision).
-
----
-
-## 10. Status of OD-029
-
-**Open — blocked on an external response.**
-
-Narrowed by this investigation:
-
-| Option | Status after research |
+| Reply | Action |
 |---|---|
-| A — switch canonical edition to 1441H | Available, but reverses a product decision; requires explicit approval |
-| B — obtain 1405H from KFGQPC | **Not downloadable.** Requires a direct request; no evidence it is published |
-| C — build 1405H coordinates in-house | Available but expensive; explicitly forbidden for now by the current instruction |
+| Data + written licence terms | Run the validation gate (`quran-validation-plan.md` V-01…V-12), then activation |
+| Data, no licence terms | Import locally for development only; **bundling stays blocked** (OD-005) |
+| "Not published" / refusal | OD-029 stays open; the choice becomes: switch edition (product decision) or build coordinates in-house |
+| No reply after follow-up | Escalate through the formal correspondence channel; do not substitute a third-party source |
 
-The decision cannot be closed from public sources. It needs either a reply from KFGQPC or a product call between A and C.
+---
+
+## Part D — Status
+
+**OD-029 — Open / Blocked.**
+
+- **Reason:** no published official artifact has been proven to represent the required edition.
+- **Next action:** official written inquiry to KFGQPC (this document).
+- **Constraint:** 1441H MUST NOT be adopted as a substitute without a new product decision. Third-party sources are not accepted. Building the coordinates in-house is out of scope for now.

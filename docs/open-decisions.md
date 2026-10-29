@@ -40,7 +40,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-026 | Reference edition (Madinah 1405H / Hafs / Uthmani / 604 / 15) | **Resolved 2026-10-29** | — |
 | OD-027 | Word-level data (level C) for the future reader | Open — deferred | post-MVP |
 | OD-028 | Reader layout strategy (if a reader is funded) | Open — deferred | post-MVP |
-| OD-029 | **Edition conflict**: canonical 1405H vs the only official artifact (1441H) | **Open — blocked on KFGQPC response** | Phase 2 import |
+| OD-029 | **Edition conflict**: canonical 1405H vs the only official artifact (1441H) | **Open / Blocked** — next: written inquiry to KFGQPC | Phase 2 import |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -391,7 +391,15 @@ The only official KFGQPC Hafs artifact available (`kfgqpc_hafs_v30`, 6,236 rows,
 
 ---
 
-## OD-029 — Edition conflict: canonical 1405H vs the available official artifact · **OPEN — BLOCKING**
+## OD-029 — Edition conflict: canonical 1405H vs the available official artifact · **OPEN — BLOCKED**
+
+| Field | Value |
+|---|---|
+| **Status** | **Open / Blocked** |
+| **Reason** | No official published artifact has been proven to represent the required edition. The only published KFGQPC Hafs dataset is 1441H-aligned; the 1405H print is not published for developers |
+| **Next action** | **Official written inquiry to KFGQPC** — request package prepared in `quran-1405h-sourcing.md` (letter, email, technical annex, licensing questions). Not yet sent |
+| **Constraint** | 1441H MUST NOT be adopted as a substitute without a **new product decision**. Third-party sources are not accepted. Building the coordinates in-house is out of scope |
+| **Blocks** | Phase 2 production import |
 
 **Situation.** OD-026 pinned the canonical edition to **1405 AH**. The only official KFGQPC Hafs artifact reachable from the developer platform is `kfgqpc_hafs_v30`, and it does **not** describe that print:
 
@@ -428,3 +436,5 @@ An official-channel investigation was run (`quran-1405h-sourcing.md`). Result: *
 Option B therefore changes character: it is **not a download**, it is a **request**. Official channels exist (`info@qurancomplex.gov.sa`, `mrkt@qurancomplex.gov.sa`, contact form) and a request template with the exact technical specification is prepared in `quran-1405h-sourcing.md` §8.
 
 **Status: Open — blocked on an external response.** Not resolvable from public sources. One gap remains to check manually: `od.data.gov.sa` was unreachable from this environment.
+
+**Prepared (2026-10-29):** the request package is ready in `quran-1405h-sourcing.md` — formal Arabic letter, short email, technical annex with the required fields, and eleven explicit licensing questions. It has **not** been sent; sending is a human action.

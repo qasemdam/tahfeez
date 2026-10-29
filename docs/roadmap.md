@@ -24,6 +24,26 @@ Note: XAMPP's PHP is built for MySQL. Either enable `pdo_pgsql` there or use the
 
 ---
 
+## 0.1 — Quran Master Data Gate
+
+**No production import may occur until all seven conditions are satisfied, in order.** This gate overrides schedule pressure: a dataset that enters production wrongly is not a bug to fix later, it is a permanent corruption of every measured amount.
+
+| # | Condition | Evidence required | Status (2026-10-29) |
+|---|---|---|---|
+| 1 | **Edition determined** | Edition identifier recorded, matching the print the pilot center uses | ✅ `madinah_1405h_hafs_uthmani` (OD-026) |
+| 2 | **Artifact obtained** | Official artifact in hand, provenance recorded | ⚠ obtained, but it is **1441H** — does not satisfy (1) |
+| 3 | **Metadata verified** | Edition provable from the artifact's own metadata, or from an independent line-break comparison | ❌ no metadata in any format; comparison contradicts 1405H |
+| 4 | **Validation suite passed** | V-01…V-12 report, page-break determination, page-height table | ⚠ 12/12 structural assertions pass **on the wrong edition** — not a pass |
+| 5 | **Checksum recorded** | SHA-256 of the exact artifact, stored with the version | ✅ `227e6b15…f635f245` |
+| 6 | **Licensing approved** | Written terms covering bundling and redistribution | ❌ none published; "all rights reserved" |
+| 7 | **Snapshot approved** | Explicit, audited activation of a `validation_status = passed` version | ❌ not created — correctly withheld |
+
+**Gate state: CLOSED.** Conditions 2, 3, 4, 6 and 7 are unmet. Phase 2 engineering may proceed against synthetic fixtures and the verified structural findings; **production import may not**.
+
+Re-opening the gate requires: a KFGQPC reply with data and terms (`quran-1405h-sourcing.md`), or an explicit product decision to change the canonical edition (OD-029).
+
+---
+
 ## Phase 1 — Project foundation
 
 **Branch:** `feature/project-foundation`
