@@ -396,8 +396,8 @@ The only official KFGQPC Hafs artifact available (`kfgqpc_hafs_v30`, 6,236 rows,
 | Field | Value |
 |---|---|
 | **Status** | **Open / Blocked** |
-| **Reason** | No official published artifact has been proven to represent the required edition. The only published KFGQPC Hafs dataset is 1441H-aligned; the 1405H print is not published for developers |
-| **Next action** | **Official written inquiry to KFGQPC** — request package prepared in `quran-1405h-sourcing.md` (letter, email, technical annex, licensing questions). Not yet sent |
+| **Reason** | No published artifact combines **the right edition** with **usable licensing**. KFGQPC publishes only the 1441H dataset (wrong edition). QUL's V1 layout *is* the 1405 print, but it carries no licence, no provenance, and no ayah column |
+| **Next action** | (a) official written inquiry to KFGQPC — package ready, not sent; (b) licensing inquiry to QUL/Tarteel for the V1 layout data |
 | **Constraint** | 1441H MUST NOT be adopted as a substitute without a **new product decision**. Third-party sources are not accepted. Building the coordinates in-house is out of scope |
 | **Blocks** | Phase 2 production import |
 
@@ -438,3 +438,17 @@ Option B therefore changes character: it is **not a download**, it is a **reques
 **Status: Open — blocked on an external response.** Not resolvable from public sources. One gap remains to check manually: `od.data.gov.sa` was unreachable from this environment.
 
 **Prepared (2026-10-29):** the request package is ready in `quran-1405h-sourcing.md` — formal Arabic letter, short email, technical annex with the required fields, and eleven explicit licensing questions. It has **not** been sent; sending is a human action.
+
+### QUL evaluation (2026-10-29) — edition solved, licensing not
+
+QUL's `qpc-v1-15-lines.db` was downloaded and validated (`quran-1405h-qul-verification.md`).
+
+| Finding | Detail |
+|---|---|
+| **Edition** | **Verified as the 1405 print** — 100.0% same page / 92.9% same line span vs the 1405H layout, against 92.4% / 21.5% for 1441H; plus 604 pages, 8-line opening pages, 112 basmala lines |
+| **Shape** | Line-oriented: `pages(page_number, line_number, line_type, first_word_id, last_word_id, surah_number)`. **No ayah column** |
+| **Ayah coordinates** | **Not derivable standalone.** Word ids run 1…83,668 with zero gaps, but mapping them to ayahs requires QUL's word table; a candidate mapping (total − token count = exactly 6,236) drifts mid-Quran and produces implausible results |
+| **Licence** | **None.** No LICENSE in the mirror repo; QUL's terms link to Tarteel's consumer ToS; QUL states most resources are community-created, not authored by Tarteel |
+| **Provenance** | Unofficial mirror of a community transcription of the print — no publisher attestation, no version, no official download to compare |
+
+**Disposition:** not accepted as master data. Retained as a **structural cross-check** (page heights, line counts), the same role as `quran-madina-html`. OD-029 remains **Open / Blocked**, now with two candidate sources and two open inquiries.

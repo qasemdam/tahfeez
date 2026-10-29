@@ -19,16 +19,17 @@ No application code has been written. This is intentional: the master instructio
 | 7 | [`quran-validation-plan.md`](quran-validation-plan.md) | How the import gate is executed, evidenced and signed off |
 | 8 | [`quran-validation-report.md`](quran-validation-report.md) | **First real run against the official artifact — structural PASS, edition FAIL** |
 | 9 | [`quran-1405h-sourcing.md`](quran-1405h-sourcing.md) | **Official request package to KFGQPC** — letter, email, technical annex, licensing questions |
-| 10 | [`quran-source-record.md`](quran-source-record.md) | Provenance, attribution and licensing record for each imported dataset |
-| 11 | [`evaluation.md`](evaluation.md) | Baseline + advanced evaluation, period configuration, snapshots, determinism |
-| 12 | [`offline-sync.md`](offline-sync.md) | Outbox, push/pull protocol, conflict matrix |
-| 13 | [`api.md`](api.md) | Endpoint surface, conventions, error contract |
-| 14 | [`permissions.md`](permissions.md) | Permission catalogue, default matrix, scope rules |
-| 15 | [`security.md`](security.md) | Threat model, controls, privacy/retention |
-| 16 | [`testing.md`](testing.md) | Test strategy, CI gates, Definition of Done |
-| 17 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, environment gaps |
-| 18 | [`open-decisions.md`](open-decisions.md) | **29 decisions — 5 resolved, 1 partial, 23 open** |
-| 19 | [`decisions/`](decisions/) | 9 ADRs for the non-obvious choices |
+| 10 | [`quran-1405h-qul-verification.md`](quran-1405h-qul-verification.md) | **QUL V1 (1405) verification** — edition corroborated, no ayah column, licensing blocked |
+| 11 | [`quran-source-record.md`](quran-source-record.md) | Provenance, attribution and licensing record for each imported dataset |
+| 12 | [`evaluation.md`](evaluation.md) | Baseline + advanced evaluation, period configuration, snapshots, determinism |
+| 13 | [`offline-sync.md`](offline-sync.md) | Outbox, push/pull protocol, conflict matrix |
+| 14 | [`api.md`](api.md) | Endpoint surface, conventions, error contract |
+| 15 | [`permissions.md`](permissions.md) | Permission catalogue, default matrix, scope rules |
+| 16 | [`security.md`](security.md) | Threat model, controls, privacy/retention |
+| 17 | [`testing.md`](testing.md) | Test strategy, CI gates, Definition of Done |
+| 18 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, environment gaps |
+| 19 | [`open-decisions.md`](open-decisions.md) | **29 decisions — 5 resolved, 1 partial, 23 open** |
+| 20 | [`decisions/`](decisions/) | 9 ADRs for the non-obvious choices |
 
 ---
 
