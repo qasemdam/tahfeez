@@ -179,6 +179,8 @@ The official KFGQPC Hafs artifact (`kfgqpc_hafs_v30`, 6,236 rows, SHA-256 `227e6
 
 Both references share one build pipeline, so tooling cannot explain the gap. **The platform currently publishes the 1441 AH layout.** It does not expose the 1405 AH print as a developer dataset — which turns the edition question from a documentation detail into a blocking product decision (**OD-029**), and means the "1405H is available officially" assumption behind OD-026 does not hold.
 
+A full sweep of every official channel (`quran-1405h-sourcing.md`) confirms this is not an oversight of a single page: there is no edition selector, no archive of older prints, no metadata field, and directory browsing on the download host is disabled (403).
+
 ---
 
 ## 6. Precision levels A / B / C / D

@@ -40,7 +40,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-026 | Reference edition (Madinah 1405H / Hafs / Uthmani / 604 / 15) | **Resolved 2026-10-29** | — |
 | OD-027 | Word-level data (level C) for the future reader | Open — deferred | post-MVP |
 | OD-028 | Reader layout strategy (if a reader is funded) | Open — deferred | post-MVP |
-| OD-029 | **Edition conflict**: canonical 1405H vs the only official artifact (1441H) | **Open — BLOCKING** | Phase 2 import |
+| OD-029 | **Edition conflict**: canonical 1405H vs the only official artifact (1441H) | **Open — blocked on KFGQPC response** | Phase 2 import |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -415,3 +415,16 @@ The **text, riwayah and script are unaffected**: this is purely a page/line coor
 **Recommendation.** Ask KFGQPC directly (option B) before paying for C. If 1405H data is not published, the choice is between A (cheap, changes the reference print) and C (expensive, preserves the decision). Do **not** silently adopt A: the print a center uses is a product fact, not an implementation detail — teachers compare the app against the physical mushaf in their hands.
 
 **Blocks:** Phase 2 import. Until resolved, no dataset can be activated and `validation_status` stays `failed` for the canonical edition.
+
+### Research outcome (2026-10-29) — narrowed, not resolved
+
+An official-channel investigation was run (`quran-1405h-sourcing.md`). Result: **KFGQPC publishes no 1405H page/line dataset.**
+
+- The developer platform exposes **one** Hafs dataset and **no edition selector**; the strings "1405"/"1441" do not appear anywhere on it (checked with Latin and Arabic-Indic digits).
+- The artifact carries **no edition metadata** in any of its seven formats.
+- The only "1405" on the official site is the complex's **founding/distribution year**, not a dataset.
+- The download host forbids directory browsing (403), so unpublished artifacts cannot be discovered.
+
+Option B therefore changes character: it is **not a download**, it is a **request**. Official channels exist (`info@qurancomplex.gov.sa`, `mrkt@qurancomplex.gov.sa`, contact form) and a request template with the exact technical specification is prepared in `quran-1405h-sourcing.md` §8.
+
+**Status: Open — blocked on an external response.** Not resolvable from public sources. One gap remains to check manually: `od.data.gov.sa` was unreachable from this environment.

@@ -63,6 +63,8 @@ The 15-line fact must never appear as a divisor in code. `lines_count` is read p
 
 **Current status (2026-10-29).** The only official artifact reachable from the platform (`kfgqpc_hafs_v30`) **does not match this edition**: its line breaks match the 1441 AH layout 100% on juz 30 and the 1405 AH layout only 20.9%. It passed all 12 structural checks and still cannot be activated. No snapshot exists; `validation_status` stays `failed`. Resolution is **OD-029**; evidence in `quran-validation-report.md`.
 
+A follow-up search of every official channel (`quran-1405h-sourcing.md`) found **no published 1405H dataset** — the only "1405" on the official site is the complex's founding year. Obtaining this edition is a **written request to KFGQPC**, not a download.
+
 ---
 
 ## 3. Dataset versioning model

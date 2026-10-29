@@ -1,6 +1,6 @@
 # Quran Dataset — Source & Provenance Record
 
-Status: **Artifact inspected — validation failed on edition, licence unresolved**
+Status: **Artifact inspected — validation failed on edition; no official 1405H dataset published; licence unresolved**
 Required by: `quran-data.md` §12 · BR-QRN-08 · OD-005 (licensing gate)
 Full results: [`quran-validation-report.md`](quran-validation-report.md)
 
@@ -92,3 +92,22 @@ Resolution:              … (investigate, do not auto-resolve)
 ```
 
 A mismatch is a signal to investigate, not a licence to overwrite the primary source.
+
+---
+
+## 5. 1405H availability (investigated 2026-10-29)
+
+**Result: no official 1405H page/line dataset is published.** Full evidence in [`quran-1405h-sourcing.md`](quran-1405h-sourcing.md).
+
+| Checked | Outcome |
+|---|---|
+| Developer platform (`/quran-dev/`) | One Hafs dataset, no edition selector, no "1405"/"1441" string |
+| Artifact metadata (7 formats) | None — no edition, no manifest, no readme |
+| Download host directory | 403 — cannot discover unpublished files |
+| Official site search / productions / sales / publications | Only the **founding year** 1405 AH, not a dataset |
+| Digital publishing app (`nashr`) | Desktop application v3.16, not a dataset; EULA unreviewed |
+| National open data portal (`od.data.gov.sa`) | **Unreachable from this environment** — manual check required |
+
+**Consequence:** the canonical edition (OD-026) cannot be sourced from public channels. A written request to KFGQPC is required — template and technical specification prepared in `quran-1405h-sourcing.md` §8. No message has been sent.
+
+**Not accepted as substitutes:** `quran-madina-layout`, `quran-madina-html`, `quran-qcf4`, Tanzil — none is an official KFGQPC 1405H source (ADR-0008, ADR-0009).

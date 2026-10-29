@@ -195,6 +195,8 @@ Development may continue against a locally held copy referenced by path and hash
 2. **Licensing (blocking for bundling).** Obtain written terms from KFGQPC, or accept that the dataset is used locally for development only and is not shipped.
 3. **Page-height source (design).** Confirm that `lines_count` is seeded from the edition specification (15, with 8 on pages 1–2) rather than derived from ayah coverage.
 
+**Update (2026-10-29).** A follow-up investigation of every official channel found **no published 1405H dataset** (`quran-1405h-sourcing.md`). Option (b) above is therefore a written request to KFGQPC — not a download — and a request template with the exact technical specification is prepared there. The decision remains open.
+
 ---
 
 ## 10. Reproducibility

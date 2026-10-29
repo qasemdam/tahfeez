@@ -18,16 +18,17 @@ No application code has been written. This is intentional: the master instructio
 | 6 | [`quran-data-sources-comparison.md`](quran-data-sources-comparison.md) | Engineering study of the two layout projects vs. KFGQPC, with the licensing matrix |
 | 7 | [`quran-validation-plan.md`](quran-validation-plan.md) | How the import gate is executed, evidenced and signed off |
 | 8 | [`quran-validation-report.md`](quran-validation-report.md) | **First real run against the official artifact — structural PASS, edition FAIL** |
-| 9 | [`quran-source-record.md`](quran-source-record.md) | Provenance, attribution and licensing record for each imported dataset |
-| 10 | [`evaluation.md`](evaluation.md) | Baseline + advanced evaluation, period configuration, snapshots, determinism |
-| 11 | [`offline-sync.md`](offline-sync.md) | Outbox, push/pull protocol, conflict matrix |
-| 12 | [`api.md`](api.md) | Endpoint surface, conventions, error contract |
-| 13 | [`permissions.md`](permissions.md) | Permission catalogue, default matrix, scope rules |
-| 14 | [`security.md`](security.md) | Threat model, controls, privacy/retention |
-| 15 | [`testing.md`](testing.md) | Test strategy, CI gates, Definition of Done |
-| 16 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, environment gaps |
-| 17 | [`open-decisions.md`](open-decisions.md) | **29 decisions — 5 resolved, 1 partial, 23 open** |
-| 18 | [`decisions/`](decisions/) | 9 ADRs for the non-obvious choices |
+| 9 | [`quran-1405h-sourcing.md`](quran-1405h-sourcing.md) | **Official-channel investigation: is 1405H data obtainable? (no) + request template** |
+| 10 | [`quran-source-record.md`](quran-source-record.md) | Provenance, attribution and licensing record for each imported dataset |
+| 11 | [`evaluation.md`](evaluation.md) | Baseline + advanced evaluation, period configuration, snapshots, determinism |
+| 12 | [`offline-sync.md`](offline-sync.md) | Outbox, push/pull protocol, conflict matrix |
+| 13 | [`api.md`](api.md) | Endpoint surface, conventions, error contract |
+| 14 | [`permissions.md`](permissions.md) | Permission catalogue, default matrix, scope rules |
+| 15 | [`security.md`](security.md) | Threat model, controls, privacy/retention |
+| 16 | [`testing.md`](testing.md) | Test strategy, CI gates, Definition of Done |
+| 17 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, environment gaps |
+| 18 | [`open-decisions.md`](open-decisions.md) | **29 decisions — 5 resolved, 1 partial, 23 open** |
+| 19 | [`decisions/`](decisions/) | 9 ADRs for the non-obvious choices |
 
 ---
 
@@ -37,7 +38,7 @@ No application code has been written. This is intentional: the master instructio
 A range is measured as a sum of page fractions: `amount_pages = Σ covered_lines(p) / lines_count(p)`. There is no `1 page = 15 lines` anywhere in the system — `lines_count` comes from the imported dataset. This satisfies §10 (a surah is not a page) and stays correct on irregular pages, where a fixed-height model understates by ~24%. Every calculated record stores the `quran_dataset_version_id` that produced it, so importing a newer dataset never silently changes a historical amount.
 
 **2. The Quran source is decided — but the official artifact does not match the chosen edition (ADR-0008, ADR-0009, OD-029).**
-The first real validation run is complete: the KFGQPC Hafs v3.0 artifact passes **all 12 structural checks** (114 surahs, 6,236 ayahs, 604 pages, no gaps or duplicates) but **encodes the 1441 AH layout**, not the 1405 AH print chosen in OD-026 — 100% match against 1441H line breaks, 20.9% against 1405H. It cannot be activated. Licensing is also unresolved: no terms are published and the site asserts all rights reserved.
+The first real validation run is complete: the KFGQPC Hafs v3.0 artifact passes **all 12 structural checks** (114 surahs, 6,236 ayahs, 604 pages, no gaps or duplicates) but **encodes the 1441 AH layout**, not the 1405 AH print chosen in OD-026 — 100% match against 1441H line breaks, 20.9% against 1405H. A full sweep of every official channel then found **no published 1405H dataset at all**; the only "1405" on the site is the complex's founding year. Obtaining it requires a written request (`quran-1405h-sourcing.md`). Licensing is also unresolved: no terms are published and the site asserts all rights reserved.
 
 **3. Period boundaries belong to the evaluation, not to a global rule (OD-002 resolved).**
 `weekly_evaluation_start_day` is a center-level enum setting — the current center uses `saturday`, but no code may hard-code a day. Each weekly evaluation stores its own `week_start`, `week_end` and `week_start_day`, so changing the setting later cannot move a student's week. Gregorian is canonical; Hijri is display-only (OD-003).
@@ -55,7 +56,7 @@ Records are events (keep both), attendance is state (human decides), approved ev
 | ID | Decision | Blocks |
 |---|---|---|
 | OD-018 | Dependency versions | **Phase 1** |
-| OD-029 | **Edition conflict** — canonical 1405H vs the only official artifact (1441H) | **Phase 2 import** |
+| OD-029 | **Edition conflict** — canonical 1405H vs the only official artifact (1441H); no 1405H dataset published | **Phase 2 import** |
 | OD-001 | Age representation | Phase 3 |
 | OD-004 | Rounding of measured pages | Phase 6 |
 | OD-009 | Missing-data policy | Phase 6 |

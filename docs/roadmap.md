@@ -46,7 +46,7 @@ Exit criteria: `make up && make test` green from a clean clone; CI green on PR.
 
 **Branch:** `feature/quran-data`
 **Depends on:** edition conflict resolved (**OD-029**, blocking) · licensing gate for bundling only
-**Status (2026-10-29):** artifact obtained and validated — 12/12 structural checks pass, but it encodes 1441H, not the canonical 1405H. Import is blocked pending OD-029. See `quran-validation-report.md`.
+**Status (2026-10-29):** artifact obtained and validated — 12/12 structural checks pass, but it encodes 1441H, not the canonical 1405H. A follow-up sweep of every official channel found **no published 1405H dataset**; a written request to KFGQPC is prepared (`quran-1405h-sourcing.md`). Import is blocked pending OD-029. See `quran-validation-report.md`.
 **Goal:** the measurement engine, proven before anything depends on it.
 
 Deliverables
