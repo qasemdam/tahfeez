@@ -1,0 +1,38 @@
+name: backend
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - run: composer install --no-interaction --prefer-dist
+
+      - run: cp .env.example .env
+
+      - run: php artisan key:generate
+
+      # phpunit.xml pins DB_CONNECTION=sqlite and DB_DATABASE=:memory:.
+      - run: php artisan test
+
+      - run: vendor/bin/pint --test
