@@ -98,33 +98,45 @@ class GroupDetailsPage extends ConsumerWidget {
                       ),
                       title: Text(student.fullName),
                       subtitle: Text(student.gradeLevel ?? ''),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          IconButton(
-                            tooltip: 'تسجيل حفظ',
-                            icon: const Icon(Icons.menu_book_rounded),
-                            onPressed: () => context.push(
+                      trailing: PopupMenuButton<String>(
+                        tooltip: 'إجراءات',
+                        onSelected: (String action) {
+                          if (action == 'memorization') {
+                            context.push(
                               '/students/${student.id}/memorization?name=${Uri.encodeComponent(student.fullName)}',
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'تسجيل مراجعة',
-                            icon: const Icon(Icons.replay_rounded),
-                            onPressed: () => context.push(
+                            );
+                          } else if (action == 'review') {
+                            context.push(
                               '/students/${student.id}/review?name=${Uri.encodeComponent(student.fullName)}',
-                            ),
-                          ),
-                          if (canManage)
-                            IconButton(
-                              tooltip: 'إزالة من الحلقة',
-                              icon: const Icon(
-                                Icons.person_remove_alt_1_rounded,
+                            );
+                          } else if (action == 'recitation') {
+                            context.push(
+                              '/students/${student.id}/recitation?name=${Uri.encodeComponent(student.fullName)}',
+                            );
+                          } else if (action == 'remove') {
+                            _removeStudent(context, ref, student);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) =>
+                            <PopupMenuEntry<String>>[
+                              const PopupMenuItem<String>(
+                                value: 'memorization',
+                                child: Text('تسجيل حفظ'),
                               ),
-                              onPressed: () =>
-                                  _removeStudent(context, ref, student),
-                            ),
-                        ],
+                              const PopupMenuItem<String>(
+                                value: 'review',
+                                child: Text('تسجيل مراجعة'),
+                              ),
+                              const PopupMenuItem<String>(
+                                value: 'recitation',
+                                child: Text('تسجيل تسميع'),
+                              ),
+                              if (canManage)
+                                const PopupMenuItem<String>(
+                                  value: 'remove',
+                                  child: Text('إزالة من الحلقة'),
+                                ),
+                            ],
                       ),
                     ),
                   ),

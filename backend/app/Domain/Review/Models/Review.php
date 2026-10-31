@@ -2,6 +2,7 @@
 
 namespace App\Domain\Review\Models;
 
+use App\Domain\Assessment\RecitationGrade;
 use App\Domain\Groups\Models\Group;
 use App\Domain\Students\Models\Student;
 use App\Domain\Tenancy\Models\Center;
@@ -32,7 +33,7 @@ class Review extends Model
     public const SOURCES = [self::SOURCE_CALCULATED, self::SOURCE_MANUAL];
 
     /** @var array<int, string> */
-    public const GRADES = ['excellent', 'very_good', 'good', 'needs_review'];
+    public const GRADES = RecitationGrade::ALL;
 
     protected $fillable = [
         'center_id',

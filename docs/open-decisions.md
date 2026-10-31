@@ -47,6 +47,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-033 | Teacher correction window for attendance | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-034 | Memorization schema: historical group, ayah numbers, dataset version | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-035 | Review schema and its separation from memorization | **Resolved 2026-10-31** (Phase 1) | — |
+| OD-036 | Recitation scope: standalone, no amount, no score yet | **Resolved 2026-10-31** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -682,5 +683,57 @@ reviews
   date. Delete is manager-only (`review.delete`); a teacher lacks it by default.
 - **The dataset version has no FK yet** because the Quran dataset table is part
   of the blocked import (OD-029). The fixture label is stored for provenance.
+
+**Blocks:** nothing.
+
+---
+
+## OD-036 — Recitation scope: standalone, no amount, no score yet · **RESOLVED 2026-10-31** (Phase 1)
+
+**Question.** `database.md` gives `recitations` the shared measurement block
+(`amount_pages`, `amount_source`, `rule_set_id`, `computed_score`) and an
+optional attachment to a memorization/review. The slice needed to know how much
+of that belongs in Phase 1.
+
+**Decision.** Recitation is a **standalone performance event**:
+
+```text
+recitations
+  center_id · student_id · group_id · teacher_id
+  recitation_date
+  surah_id · from_ayah_id · to_ayah_id
+  from_ayah_number · to_ayah_number
+  from_page · to_page
+  grade · hifz_errors · tajweed_errors · reading_errors · notes
+  quran_dataset_version_id (no FK yet) · quran_dataset_version
+  client_uuid · version · timestamps · deleted_at
+
+  unique (center_id, client_uuid)
+```
+
+- **No `amount_pages` / `amount_lines`.** Recitation records the range and the
+  performance, not a page amount. The range is sufficient for a later
+  evaluation; adding an amount would make recitation a memorization copy.
+- **No `rule_set_id` / `computed_score`.** BR-REC-02 forbids a hard-coded
+  scoring formula; BR-REC-03/04 need the rule-set engine, which is a later
+  slice. Computing a score now would violate the rule, so the grade and error
+  counters are stored raw.
+- **No `recitation_type` and no `memorization_id` / `review_id`.** Phase 1
+  records a standalone event. OD-006 (attached vs standalone) remains open for
+  the linking decision; the table can gain nullable columns later without a
+  rewrite.
+- **`group_id` is historical** and `teacher_id` is the author.
+- **The dataset version is stored** (id without FK + label) because the derived
+  pages are edition-specific (BR-QRN-10). This is provenance, not a score.
+- **Grades reuse `App\Domain\Assessment\RecitationGrade`** (the same catalogue
+  memorization/review validate against); no duplicate enum.
+- **Quran validation goes through `QuranDataProvider::ayahLocation()`**. The
+  provider resolves the range and the page span; a client-supplied page must
+  match it, otherwise 422. No `/15`, no direct KFGQPC/QUL dependency.
+- **Multiple recitations per day are allowed**; idempotency is by `client_uuid`.
+- **Teacher update window:** own records, same center business day; manager any
+  date. Delete is manager-only (`recitation.delete`).
+- **No coupling:** a recitation never creates or changes a memorization,
+  review or attendance row.
 
 **Blocks:** nothing.

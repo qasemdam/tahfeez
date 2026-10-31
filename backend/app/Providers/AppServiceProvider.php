@@ -6,12 +6,14 @@ use App\Domain\Attendance\Models\Attendance;
 use App\Domain\Groups\Models\Group;
 use App\Domain\Memorization\Models\Memorization;
 use App\Domain\Quran\Contracts\QuranDataProvider;
+use App\Domain\Recitation\Models\Recitation;
 use App\Domain\Review\Models\Review;
 use App\Domain\Students\Models\Student;
 use App\Infrastructure\Quran\FixtureQuranDataProvider;
 use App\Policies\AttendancePolicy;
 use App\Policies\GroupPolicy;
 use App\Policies\MemorizationPolicy;
+use App\Policies\RecitationPolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\StudentPolicy;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -49,5 +51,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Attendance::class, AttendancePolicy::class);
         Gate::policy(Memorization::class, MemorizationPolicy::class);
         Gate::policy(Review::class, ReviewPolicy::class);
+        Gate::policy(Recitation::class, RecitationPolicy::class);
     }
 }

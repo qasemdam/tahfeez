@@ -49,6 +49,7 @@ class User extends Authenticatable
             'review.record',
             'review.update',
             'recitation.record',
+            'recitation.update',
             'attendance.view',
             'attendance.record',
             'attendance.update',
