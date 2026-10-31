@@ -52,7 +52,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
 
     if (ok) {
-      context.go('/students');
+      context.go('/groups');
     }
   }
 

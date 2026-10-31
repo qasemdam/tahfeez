@@ -2,6 +2,7 @@
 
 namespace App\Domain\Students\Models;
 
+use App\Domain\Groups\Models\Group;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ class StudentTeacherAssignment extends Model
         'center_id',
         'student_id',
         'teacher_id',
+        'group_id',
         'assigned_at',
         'unassigned_at',
         'assigned_by',
@@ -43,5 +45,14 @@ class StudentTeacherAssignment extends Model
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'teacher_id');
+    }
+
+    /**
+     * The group that produced this assignment, when it was group-driven.
+     * Null means it was assigned directly.
+     */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
     }
 }

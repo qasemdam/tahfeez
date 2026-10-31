@@ -43,6 +43,7 @@ class User extends Authenticatable
         self::ROLE_MANAGER => ['*'],
         self::ROLE_TEACHER => [
             'students.view',
+            'groups.view',
             'memorization.record',
             'review.record',
             'recitation.record',
@@ -121,6 +122,23 @@ class User extends Authenticatable
         }
 
         return in_array($permission, $this->permissions ?? [], true);
+    }
+
+    /**
+     * The resolved permission list (role defaults + overrides), used by the
+     * client for cosmetic UI only — the server re-authorizes every request.
+     *
+     * @return array<int, string>
+     */
+    public function effectivePermissions(): array
+    {
+        $defaults = self::ROLE_PERMISSIONS[$this->role] ?? [];
+
+        if (in_array('*', $defaults, true)) {
+            return ['*'];
+        }
+
+        return array_values(array_unique(array_merge($defaults, $this->permissions ?? [])));
     }
 
     /**

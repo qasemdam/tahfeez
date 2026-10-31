@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Domain\Groups\Models\Group;
 use App\Domain\Students\Models\Student;
+use App\Policies\GroupPolicy;
 use App\Policies\StudentPolicy;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Gate;
@@ -33,5 +35,6 @@ class AppServiceProvider extends ServiceProvider
         // Student is not under App\Models, so its policy cannot be discovered
         // by convention. Register it explicitly.
         Gate::policy(Student::class, StudentPolicy::class);
+        Gate::policy(Group::class, GroupPolicy::class);
     }
 }

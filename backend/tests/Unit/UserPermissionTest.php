@@ -25,6 +25,7 @@ class UserPermissionTest extends TestCase
         $teacher = new User(['role' => User::ROLE_TEACHER]);
 
         $this->assertTrue($teacher->hasPermission('students.view'));
+        $this->assertTrue($teacher->hasPermission('groups.view'));
         $this->assertTrue($teacher->hasPermission('memorization.record'));
         $this->assertTrue($teacher->hasPermission('attendance.record'));
         $this->assertTrue($teacher->hasPermission('evaluation.view'));
@@ -36,6 +37,8 @@ class UserPermissionTest extends TestCase
 
         $this->assertFalse($teacher->hasPermission('students.create'));
         $this->assertFalse($teacher->hasPermission('students.delete'));
+        $this->assertFalse($teacher->hasPermission('groups.create'));
+        $this->assertFalse($teacher->hasPermission('groups.update'));
         $this->assertFalse($teacher->hasPermission('users.manage'));
     }
 
@@ -59,5 +62,23 @@ class UserPermissionTest extends TestCase
         $this->assertFalse($manager->isTeacher());
         $this->assertTrue($teacher->isTeacher());
         $this->assertFalse($teacher->isManager());
+    }
+
+    public function test_effective_permissions_merge_defaults_and_overrides(): void
+    {
+        $teacher = new User([
+            'role' => User::ROLE_TEACHER,
+            'permissions' => ['groups.update'],
+        ]);
+
+        $effective = $teacher->effectivePermissions();
+
+        $this->assertContains('groups.view', $effective);
+        $this->assertContains('groups.update', $effective);
+        $this->assertNotContains('groups.create', $effective);
+
+        $manager = new User(['role' => User::ROLE_MANAGER]);
+
+        $this->assertSame(['*'], $manager->effectivePermissions());
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Domain\Identity\Models\ApiToken;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -33,6 +34,11 @@ class AuthenticateApiToken
         }
 
         $request->setUserResolver(static fn () => $token->user);
+
+        // Make the user visible to the framework's authorization layer too
+        // (Gate/policies read the default guard, not the request resolver).
+        Auth::setUser($token->user);
+
         $request->attributes->set('api_token', $token);
 
         $token->forceFill(['last_used_at' => now()])->saveQuietly();

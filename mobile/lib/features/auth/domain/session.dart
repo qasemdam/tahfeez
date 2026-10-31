@@ -6,6 +6,7 @@ class AppUser {
     required this.role,
     required this.centerId,
     required this.centerName,
+    this.permissions = const <String>[],
   });
 
   final int id;
@@ -15,8 +16,16 @@ class AppUser {
   final int centerId;
   final String centerName;
 
+  /// Effective permissions resolved by the server. Cosmetic only: every write
+  /// is re-authorized server-side.
+  final List<String> permissions;
+
   bool get isManager => role == 'center_manager';
   bool get isTeacher => role == 'teacher';
+
+  bool can(String permission) {
+    return permissions.contains('*') || permissions.contains(permission);
+  }
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
@@ -26,6 +35,11 @@ class AppUser {
       role: json['role'] as String? ?? 'teacher',
       centerId: json['center_id'] as int? ?? 0,
       centerName: json['center_name'] as String? ?? '',
+      permissions:
+          (json['permissions'] as List<dynamic>?)
+              ?.map((dynamic permission) => permission as String)
+              .toList(growable: false) ??
+          const <String>[],
     );
   }
 
@@ -36,6 +50,7 @@ class AppUser {
     'role': role,
     'center_id': centerId,
     'center_name': centerName,
+    'permissions': permissions,
   };
 }
 

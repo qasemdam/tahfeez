@@ -2,6 +2,7 @@
 
 namespace App\Domain\Students\Models;
 
+use App\Domain\Groups\Models\GroupMembership;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -67,6 +68,16 @@ class Student extends Model
     {
         return $this->hasOne(StudentTeacherAssignment::class)
             ->whereNull('unassigned_at');
+    }
+
+    public function groupMemberships(): HasMany
+    {
+        return $this->hasMany(GroupMembership::class);
+    }
+
+    public function activeGroupMembership(): HasOne
+    {
+        return $this->hasOne(GroupMembership::class)->whereNull('left_at');
     }
 
     /**

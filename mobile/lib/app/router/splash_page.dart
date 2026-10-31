@@ -28,7 +28,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     }
 
     final bool signedIn = ref.read(authControllerProvider).valueOrNull != null;
-    context.go(signedIn ? '/students' : '/login');
+    context.go(signedIn ? '/groups' : '/login');
   }
 
   @override

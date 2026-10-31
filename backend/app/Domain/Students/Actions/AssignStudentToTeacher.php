@@ -17,8 +17,13 @@ use RuntimeException;
  */
 class AssignStudentToTeacher
 {
-    public function execute(Student $student, User $teacher, User $actor, ?string $reason = null): StudentTeacherAssignment
-    {
+    public function execute(
+        Student $student,
+        User $teacher,
+        User $actor,
+        ?string $reason = null,
+        ?int $groupId = null,
+    ): StudentTeacherAssignment {
         if ($teacher->center_id !== $student->center_id) {
             throw new RuntimeException('Teacher and student belong to different centers.');
         }
@@ -27,7 +32,7 @@ class AssignStudentToTeacher
             throw new RuntimeException('The assignee is not a teacher.');
         }
 
-        return DB::transaction(function () use ($student, $teacher, $actor, $reason): StudentTeacherAssignment {
+        return DB::transaction(function () use ($student, $teacher, $actor, $reason, $groupId): StudentTeacherAssignment {
             $student->assignments()
                 ->whereNull('unassigned_at')
                 ->update(['unassigned_at' => now()->toDateString()]);
@@ -35,6 +40,7 @@ class AssignStudentToTeacher
             return $student->assignments()->create([
                 'center_id' => $student->center_id,
                 'teacher_id' => $teacher->id,
+                'group_id' => $groupId,
                 'assigned_at' => now()->toDateString(),
                 'assigned_by' => $actor->id,
                 'reason' => $reason,

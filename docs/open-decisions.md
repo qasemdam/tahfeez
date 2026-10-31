@@ -41,6 +41,8 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-027 | Word-level data (level C) for the future reader | Open — deferred | post-MVP |
 | OD-028 | Reader layout strategy (if a reader is funded) | Open — deferred | post-MVP |
 | OD-029 | **Edition conflict**: canonical 1405H vs the only official artifact (1441H) | **Open / Blocked** — next: written inquiry to KFGQPC | Phase 2 import |
+| OD-030 | Groups (حلقات) schema and teacher-assignment coupling | **Resolved 2026-10-31** (Phase 1, pending review) | — |
+| OD-031 | Role value `teacher` vs documented `muhaffiz` | Open — non-blocking | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -452,3 +454,65 @@ QUL's `qpc-v1-15-lines.db` was downloaded and validated (`quran-1405h-qul-verifi
 | **Provenance** | Unofficial mirror of a community transcription of the print — no publisher attestation, no version, no official download to compare |
 
 **Disposition:** not accepted as master data. Retained as a **structural cross-check** (page heights, line counts), the same role as `quran-madina-html`. OD-029 remains **Open / Blocked**, now with two candidate sources and two open inquiries.
+
+---
+
+## OD-030 — Groups (حلقات) schema and teacher-assignment coupling · **RESOLVED 2026-10-31** (Phase 1, pending review)
+
+**Question.** Phase 0 has no `groups` table. The hierarchy `Center → Teachers → Groups → Students` is needed before Attendance and Memorization, but the field names and the relationship to `student_teacher_assignments` were undefined.
+
+**Decision.** Keep it small and explicit:
+
+```text
+groups
+  id, center_id (FK), teacher_id (FK users, required), name(120),
+  status(active|inactive), notes, version, timestamps, deleted_at
+
+group_memberships
+  id, center_id, group_id, student_id, joined_at, left_at (null = active),
+  assigned_by, reason, timestamps
+  unique (student_id) where left_at is null   -- at most one active group
+
+student_teacher_assignments
+  + group_id nullable                        -- marks a group-driven assignment
+```
+
+Rules:
+
+- A group belongs to one center and one teacher; `teacher_id` is required.
+- A student has **at most one active group**. Moving closes the old membership and inserts a new row; history is never overwritten.
+- The group's teacher is the student's teacher while the student is in the group:
+  - join → close the previous assignment and assign the group's teacher;
+  - leave → close only the assignment whose `group_id` is this group;
+  - change the group teacher → reassign every active member in one transaction;
+  - delete the group → soft-delete, close active memberships and group-driven assignments.
+- `group_id` is deliberately **not** a foreign key: assignment history must survive a group purge.
+
+**Permissions.** `groups.view` (teacher default, own groups only), `groups.create`, `groups.update`, `groups.delete`, `groups.manage_students` (manager by default). Scope is structural: the controller resolves `Group::visibleTo($user)`, so an out-of-scope id is a **404** before the policy decides **403**.
+
+**API.** `GET/POST /groups`, `GET/PATCH/DELETE /groups/{id}`, `POST /groups/{id}/students`, `DELETE /groups/{id}/students/{studentId}`. A read-only `GET /teachers` (manager only) supplies the assignment picker.
+
+**Why not the alternatives.**
+
+- *Nullable `teacher_id`* (create first, assign later) leaves a group that cannot accept students and complicates every query. Requiring the teacher is simpler.
+- *Independent membership and teacher assignment* creates two sources of truth for "who teaches this student" and lets a teacher see a student who is not in their group. Coupling them is the point of the hierarchy.
+- *No history table* would erase which group a student was in when a record was created — the same mistake `students.teacher_id` was rejected for in Phase 0.
+
+**Naming.** Table `groups` (quoted by the ORM; `GROUPS` is a keyword in window frames), model `Group`, Arabic label **حلقة**. No `halaqat` table name — it would diverge from the `/groups` API without adding clarity.
+
+**Blocks:** nothing.
+
+---
+
+## OD-031 — Role value `teacher` vs documented `muhaffiz` · **OPEN** (non-blocking)
+
+**Question.** `docs/permissions.md` and BR-AUT-01 name the role `muhaffiz`; the Phase 1 implementation stores `teacher` (`User::ROLE_TEACHER`) and the API/Flutter use that value.
+
+**Options.**
+
+1. Keep `teacher` as the stored/wire value and display **محفظ** in the UI; amend the docs to say the identifier is `teacher`.
+2. Rename the value to `muhaffiz` via a data migration, update `ROLE_TEACHER`, the factories, tests and the Flutter `AppUser`, and change the API contract.
+
+**Recommendation:** option 1 for the MVP. The Arabic label is what users see; the stored value is an implementation identifier, and renaming it now buys no behaviour. If a public API or third-party integration ships, take option 2 in a dedicated, versioned change — not inside a feature slice.
+
+**Blocks:** nothing. The Groups slice uses the existing `teacher` value and labels it **المحفظ**.

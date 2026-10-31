@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\GroupController;
 use App\Http\Controllers\Api\V1\StudentController;
+use App\Http\Controllers\Api\V1\TeacherController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,5 +24,12 @@ Route::prefix('v1')->group(function (): void {
         // Only the actions implemented in this slice are exposed.
         Route::apiResource('students', StudentController::class)
             ->only(['index', 'store', 'show']);
+
+        Route::get('teachers', [TeacherController::class, 'index']);
+
+        Route::apiResource('groups', GroupController::class);
+
+        Route::post('groups/{group}/students', [GroupController::class, 'addStudent']);
+        Route::delete('groups/{group}/students/{student}', [GroupController::class, 'removeStudent']);
     });
 });

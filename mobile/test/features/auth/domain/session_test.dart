@@ -53,6 +53,25 @@ void main() {
       expect(restored.centerId, user.centerId);
       expect(restored.centerName, user.centerName);
     });
+
+    test('exposes effective permissions through can()', () {
+      final AppUser teacher = AppUser.fromJson(<String, dynamic>{
+        'id': 1,
+        'role': 'teacher',
+        'permissions': <String>['groups.view'],
+      });
+
+      expect(teacher.can('groups.view'), isTrue);
+      expect(teacher.can('groups.create'), isFalse);
+
+      final AppUser manager = AppUser.fromJson(<String, dynamic>{
+        'id': 2,
+        'role': 'center_manager',
+        'permissions': <String>['*'],
+      });
+
+      expect(manager.can('anything.at.all'), isTrue);
+    });
   });
 
   group('Session', () {
