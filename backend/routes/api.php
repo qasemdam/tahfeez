@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\GroupAttendanceController;
 use App\Http\Controllers\Api\V1\GroupController;
+use App\Http\Controllers\Api\V1\MemorizationController;
+use App\Http\Controllers\Api\V1\QuranController;
 use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\TeacherController;
 use Illuminate\Support\Facades\Route;
@@ -39,5 +41,9 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('groups/{group}/attendance', [GroupAttendanceController::class, 'sheet']);
         Route::post('groups/{group}/attendance', [GroupAttendanceController::class, 'store']);
+
+        Route::get('quran/surahs', [QuranController::class, 'surahs']);
+
+        Route::apiResource('memorization', MemorizationController::class);
     });
 });

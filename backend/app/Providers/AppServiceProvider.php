@@ -4,9 +4,13 @@ namespace App\Providers;
 
 use App\Domain\Attendance\Models\Attendance;
 use App\Domain\Groups\Models\Group;
+use App\Domain\Memorization\Models\Memorization;
+use App\Domain\Quran\Contracts\QuranDataProvider;
 use App\Domain\Students\Models\Student;
+use App\Infrastructure\Quran\FixtureQuranDataProvider;
 use App\Policies\AttendancePolicy;
 use App\Policies\GroupPolicy;
+use App\Policies\MemorizationPolicy;
 use App\Policies\StudentPolicy;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Gate;
@@ -19,7 +23,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The only binding business code sees. The implementation is a
+        // development fixture until the dataset gate (OD-029) is resolved.
+        $this->app->singleton(QuranDataProvider::class, FixtureQuranDataProvider::class);
     }
 
     /**
@@ -39,5 +45,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Student::class, StudentPolicy::class);
         Gate::policy(Group::class, GroupPolicy::class);
         Gate::policy(Attendance::class, AttendancePolicy::class);
+        Gate::policy(Memorization::class, MemorizationPolicy::class);
     }
 }

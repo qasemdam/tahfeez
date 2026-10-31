@@ -98,16 +98,27 @@ class GroupDetailsPage extends ConsumerWidget {
                       ),
                       title: Text(student.fullName),
                       subtitle: Text(student.gradeLevel ?? ''),
-                      trailing: canManage
-                          ? IconButton(
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          IconButton(
+                            tooltip: 'تسجيل حفظ',
+                            icon: const Icon(Icons.menu_book_rounded),
+                            onPressed: () => context.push(
+                              '/students/${student.id}/memorization?name=${Uri.encodeComponent(student.fullName)}',
+                            ),
+                          ),
+                          if (canManage)
+                            IconButton(
                               tooltip: 'إزالة من الحلقة',
                               icon: const Icon(
                                 Icons.person_remove_alt_1_rounded,
                               ),
                               onPressed: () =>
                                   _removeStudent(context, ref, student),
-                            )
-                          : null,
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

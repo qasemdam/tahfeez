@@ -45,6 +45,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-031 | Role value `teacher` vs documented `muhaffiz` | Open — non-blocking | — |
 | OD-032 | Attendance record: historical group + one row per student/day | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-033 | Teacher correction window for attendance | **Resolved 2026-10-31** (Phase 1) | — |
+| OD-034 | Memorization schema: historical group, ayah numbers, dataset version | **Resolved 2026-10-31** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -580,5 +581,60 @@ rewriting historical attendance.
 ownership (teacher) and the date. The controller resolves the record through
 `Attendance::visibleTo()`, so an out-of-scope id is 404 before the policy
 returns 403.
+
+**Blocks:** nothing.
+
+---
+
+## OD-034 — Memorization schema: historical group, ayah numbers, dataset version · **RESOLVED 2026-10-31** (Phase 1)
+
+**Question.** `database.md` defines `memorizations` without a `group_id`, with
+global `from_ayah_id`/`to_ayah_id` only, and with `quran_dataset_version_id`
+pointing at a table that does not exist yet (OD-029). The slice brief uses
+`AUTO` for a calculated amount, while the docs use `CALCULATED`.
+
+**Decision.**
+
+```text
+memorizations
+  center_id · student_id · group_id · teacher_id
+  memorization_date
+  surah_id · from_ayah_id · to_ayah_id
+  from_ayah_number · to_ayah_number          -- display-friendly, same range
+  from_page · to_page
+  amount_pages numeric(8,4) · amount_lines
+  amount_source CALCULATED | MANUAL
+  quran_dataset_version_id (no FK yet) · quran_dataset_version (label)
+  grade · hifz_errors · tajweed_errors · reading_errors · notes
+  client_uuid · version · timestamps · deleted_at
+
+  unique (center_id, client_uuid)
+```
+
+- **`group_id` is historical**, exactly like attendance: captured at creation,
+  never updated when the student moves.
+- **`from_ayah_number`/`to_ayah_number`** are stored alongside the global ids so
+  the API is self-contained for the UI; the global ids remain the canonical
+  Quran reference.
+- **`quran_dataset_version_id` has no FK** until the dataset table exists in
+  Phase 2. `quran_dataset_version` stores the provider label
+  (`fixture-dev-v1` today) so a record explains what measured it. The fixture
+  is a development artifact, **not** canonical data; OD-029 is untouched.
+- **`amount_source`** uses the documented values `CALCULATED` and `MANUAL`.
+  The product's "AUTO" is `CALCULATED`; the Flutter enum maps it to **تلقائي**.
+  The source is immutable (BR-MEM-02): a PATCH cannot convert one into the
+  other.
+- **Multiple records per student per day are allowed** (two sessions).
+  Idempotency is by `client_uuid`, not by student+date — unlike attendance,
+  where the day is the unit.
+- **`week_key` is deferred.** It is a denormalised index hint for evaluation,
+  and this slice computes no weekly value. Adding it later is additive.
+- **Teacher update window:** own records only, same center business day; a
+  manager may correct any date. This follows the documented matrix
+  (`memorization.update`: own records, same day) rather than inventing a new
+  rule.
+- **No evaluation coupling:** no `achievement_pct`, no `weighted_score`, no
+  ranking. Memorization stores raw amount and quality data only (BR-ATT-04
+  logic applies equally here).
 
 **Blocks:** nothing.

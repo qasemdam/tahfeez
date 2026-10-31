@@ -5,6 +5,7 @@ import '../../features/attendance/presentation/attendance_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/groups/presentation/group_details_page.dart';
 import '../../features/groups/presentation/groups_page.dart';
+import '../../features/memorization/presentation/memorization_page.dart';
 import '../../features/students/presentation/students_page.dart';
 import 'splash_page.dart';
 
@@ -25,6 +26,13 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
         path: '/groups/:id',
         builder: (_, GoRouterState state) => GroupDetailsPage(
           groupId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        path: '/students/:id/memorization',
+        builder: (_, GoRouterState state) => MemorizationPage(
+          studentId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+          studentName: state.uri.queryParameters['name'] ?? '',
         ),
       ),
       GoRoute(path: '/students', builder: (_, __) => const StudentsPage()),

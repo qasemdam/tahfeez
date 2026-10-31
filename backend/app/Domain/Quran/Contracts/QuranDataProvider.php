@@ -2,6 +2,7 @@
 
 namespace App\Domain\Quran\Contracts;
 
+use App\Domain\Quran\Support\AyahLocation;
 use App\Domain\Quran\Support\PageMeasurement;
 
 /**
@@ -24,7 +25,13 @@ interface QuranDataProvider
     public function linesOnPage(int $page): int;
 
     /**
-     * Measures an inclusive ayah range against the dataset's page structure.
+     * Location of one ayah, expressed as an ayah number within its surah.
+     */
+    public function ayahLocation(int $surahId, int $ayahNumber): AyahLocation;
+
+    /**
+     * Measures an inclusive global-ayah-id range against the dataset's page
+     * structure. Never divides by a hard-coded page height.
      */
     public function measure(int $fromAyahId, int $toAyahId): PageMeasurement;
 
@@ -32,4 +39,9 @@ interface QuranDataProvider
      * Identifies the dataset version used for a measurement.
      */
     public function datasetVersion(): string;
+
+    /**
+     * Numeric identifier of the dataset version, stored on measured records.
+     */
+    public function datasetVersionId(): int;
 }
