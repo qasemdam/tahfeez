@@ -262,3 +262,96 @@ A property test asserts: same `(records, snapshot)` ⇒ byte-identical `componen
 | `two_scores_separate` | achievement 250.00 stored uncapped; `weighted_score` within 0–100; neither value derived from the other |
 | `period_setting_change` | changing `weekly_evaluation_start_day` leaves every existing `week_start`/`week_end` untouched |
 | `period_overlap_guard` | an `effective_from` that would overlap a computed period is rejected |
+
+---
+
+## 10. Evaluation engine (Phase 1 implementation)
+
+Status: implemented in `App\Domain\Evaluation`; **no persistence**, no weekly
+evaluation, no reports, no UI. The weekly-evaluation slice is the consumer.
+
+### 10.1 Contract
+
+```text
+EvaluationEngine::evaluate(EvaluationInput): EvaluationResult
+```
+
+The engine is pure and deterministic:
+
+- always computes `achievement_percentage` (uncapped) from
+  `actual_pages / required_pages x 100`;
+- computes `weighted_score` only when a rule set is supplied, otherwise null;
+- never writes to the database, never reads the clock, never calls a network
+  or an LLM, and never measures Quran amounts (the caller supplies
+  `actual_pages`).
+
+### 10.2 DTOs
+
+| DTO | Fields |
+|---|---|
+| `EvaluationInput` | `required_pages`, `actual_pages`, `review_pages?`, `recitation?`, `attendance?`, `profile?`, `rule_set?` |
+| `EvaluationResult` | `required_pages`, `actual_pages`, `achievement_percentage`, `weighted_score?`, `is_complete`, `components[]`, `blocked_criteria[]`, `profile_version?`, `profile_effective_from?`, `template_version_id?`, `rule_set_version?` |
+| `RecitationInput` | pre-computed `scores` (0..100, ordered), `hifz_errors`, `tajweed_errors`, `reading_errors` |
+| `AttendanceInput` | `present`, `late`, `excused_absence`, `unexcused_absence` |
+| `EvaluationProfile` | `version`, `effective_from`, `required_pages`, `template_version_id?` |
+
+The result keeps the two numbers separate (BR-EVL-15): achievement is
+uncapped, the weighted score is 0..100 or null.
+
+### 10.3 Rule set
+
+```text
+EvaluationRuleSet(version, criteria[])
+EvaluationCriterion(key, weight, calculator, missing_data_policy, params)
+```
+
+- `key` is one of the closed catalogue in §3.2.
+- `weight` is a decimal string, `> 0` and `<= 100`; the sum must be exactly
+  `100.00` (BR-EVL-06), otherwise the engine throws.
+- `missing_data_policy` is `treat_as_zero`, `exclude_and_renormalize` or
+  `block` (BR-EVL-12).
+- **No default weights are shipped.** The rule set must supply them; a missing
+  or partial rule set is a configuration error, not a silent default.
+
+Aggregation:
+
+```text
+weighted_i = normalized_i x weight_i / 100
+weighted_score = Σ weighted_i / Σ included_weight_i x 100
+```
+
+`exclude_and_renormalize` drops a criterion and renormalises the denominator;
+`treat_as_zero` keeps its weight with a zero contribution; `block` makes the
+result incomplete (`weighted_score = null`, `is_complete = false`). The
+aggregate is clamped to 0..100; the achievement is never clamped.
+
+### 10.4 Calculators
+
+| Key | Raw input | Normalisation | Params |
+|---|---|---|---|
+| `memorization_pages` | `actual_pages` | `raw / required x 100`, uncapped unless `cap` | `required_pages` optional (profile/input fallback), `cap` optional |
+| `review_completion` | `review_pages` | `raw / target x 100` | `target_pages` required, `cap` optional |
+| `recitation_quality` | pre-computed scores | `mean` / `min` / `latest` | `aggregate` required |
+| `error_rate` | weighted error counts | band table `<= max → score` | `weights_by_type`, `bands` (sorted by max; a catch-all is required) |
+| `attendance` | counts by status | weighted average of `status_scores` | `status_scores`, `count_absences_in_denominator` |
+
+- **Recitation scores are pre-computed.** The banded recitation rule document
+  (§4) is a separate rule-set engine; this engine aggregates scores and does
+  not invent a grade-to-score formula.
+- **Attendance is opt-in** (BR-ATT-04). The denominator is all records when
+  `count_absences_in_denominator` is true, and records excluding unexcused
+  absences when false. The default mapping in §7 is configuration, not a
+  hidden constant.
+- **Error bands** are sorted by `max` before matching, so the result does not
+  depend on the rule set's array order.
+
+### 10.5 Deferred
+
+- Weekly evaluation rows, snapshots, period boundaries and recompute policy.
+- Template/profile persistence and publishing.
+- The banded recitation rule-set scorer (§4).
+- Reports, dashboards, notifications and any UI.
+
+The engine's tests cover the baseline rows, no-normalisation, component
+separation, missing-data policies, weight validation, profile version
+carry-through, determinism and the two-scores separation.

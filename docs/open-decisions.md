@@ -48,6 +48,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-034 | Memorization schema: historical group, ayah numbers, dataset version | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-035 | Review schema and its separation from memorization | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-036 | Recitation scope: standalone, no amount, no score yet | **Resolved 2026-10-31** (Phase 1) | — |
+| OD-037 | Evaluation engine calculator contracts; no default weights | **Resolved 2026-10-31** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -737,3 +738,40 @@ recitations
   review or attendance row.
 
 **Blocks:** nothing.
+
+---
+
+## OD-037 — Evaluation engine calculator contracts; no default weights · **RESOLVED 2026-10-31** (Phase 1)
+
+**Question.** `docs/evaluation.md` defines the criterion catalogue and the
+aggregation formula, but the concrete weights and several calculator params
+are center/template data. The engine needed a contract without inventing
+business values.
+
+**Decision.**
+
+- **No default weights are shipped.** A rule set must supply criteria whose
+  weights are `> 0`, `<= 100` and total exactly `100.00`; otherwise the engine
+  throws. An empty or partial rule set is a configuration error.
+- **The five documented criteria are implemented with explicit params.**
+  Nothing is hard-coded: memorization `required_pages`/`cap`, review
+  `target_pages`/`cap`, recitation `aggregate`, error `weights_by_type`/`bands`,
+  attendance `status_scores`/`count_absences_in_denominator`.
+- **Recitation quality consumes pre-computed scores.** The banded recitation
+  rule document in `evaluation.md` §4 is a separate rule-set engine; this
+  engine aggregates the scores and does not invent a grade-to-score formula.
+- **Attendance denominator.** All records when
+  `count_absences_in_denominator` is true; records excluding unexcused
+  absences when false. This is the simplest reading of the documented flag and
+  keeps the documented default (absences do not hurt) honest. Flagged for
+  review when the attendance criterion is first configured.
+- **Missing data.** `treat_as_zero` keeps the weight with a zero contribution;
+  `exclude_and_renormalize` drops the criterion and renormalises;
+  `block` yields `weighted_score = null` and `is_complete = false`.
+- **No persistence, no clock, no AI.** The engine returns a result DTO; the
+  weekly-evaluation slice will resolve the profile, persist the snapshot and
+  own the period boundaries.
+- **Two values, never mixed.** `achievement_percentage` is uncapped;
+  `weighted_score` is 0..100 or null.
+
+**Blocks:** nothing. The weekly-evaluation slice can consume the engine as-is.
