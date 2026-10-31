@@ -108,6 +108,13 @@ class GroupDetailsPage extends ConsumerWidget {
                               '/students/${student.id}/memorization?name=${Uri.encodeComponent(student.fullName)}',
                             ),
                           ),
+                          IconButton(
+                            tooltip: 'تسجيل مراجعة',
+                            icon: const Icon(Icons.replay_rounded),
+                            onPressed: () => context.push(
+                              '/students/${student.id}/review?name=${Uri.encodeComponent(student.fullName)}',
+                            ),
+                          ),
                           if (canManage)
                             IconButton(
                               tooltip: 'إزالة من الحلقة',

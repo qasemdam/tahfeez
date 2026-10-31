@@ -28,6 +28,8 @@ class UserPermissionTest extends TestCase
         $this->assertTrue($teacher->hasPermission('groups.view'));
         $this->assertTrue($teacher->hasPermission('memorization.record'));
         $this->assertTrue($teacher->hasPermission('memorization.update'));
+        $this->assertTrue($teacher->hasPermission('review.record'));
+        $this->assertTrue($teacher->hasPermission('review.update'));
         $this->assertTrue($teacher->hasPermission('attendance.record'));
         $this->assertTrue($teacher->hasPermission('attendance.update'));
         $this->assertTrue($teacher->hasPermission('evaluation.view'));
@@ -41,6 +43,7 @@ class UserPermissionTest extends TestCase
         $this->assertFalse($teacher->hasPermission('students.delete'));
         $this->assertFalse($teacher->hasPermission('groups.create'));
         $this->assertFalse($teacher->hasPermission('groups.update'));
+        $this->assertFalse($teacher->hasPermission('review.delete'));
         $this->assertFalse($teacher->hasPermission('users.manage'));
     }
 

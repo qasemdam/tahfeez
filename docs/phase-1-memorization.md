@@ -91,6 +91,10 @@ datasetVersionId(): int
 `PageMeasurement` already carried `pageStart`/`lineStart`/`pageEnd`/`lineEnd`
 from Phase 0 and is reused unchanged.
 
+The MANUAL/CALCULATED orchestration is shared with Review through
+`App\Domain\Quran\Actions\ResolveQuranAmount`; the measurement itself stays in
+the provider.
+
 The binding is `App\Infrastructure\Quran\FixtureQuranDataProvider` — a
 **development fixture**, not an edition:
 

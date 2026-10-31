@@ -11,15 +11,17 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreMemorizationRequest;
 use App\Http\Requests\Api\V1\UpdateMemorizationRequest;
 use App\Http\Resources\MemorizationResource;
+use App\Http\Support\AttachesSurahNames;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 
 class MemorizationController extends Controller
 {
+    use AttachesSurahNames;
+
     public function index(Request $request, QuranDataProvider $quran): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Memorization::class);
@@ -109,20 +111,5 @@ class MemorizationController extends Controller
         return Memorization::query()
             ->visibleTo($request->user())
             ->findOrFail($memorizationId);
-    }
-
-    /**
-     * Adds a display-only surah name from the active provider; the column is
-     * not stored because surah names belong to Quran metadata, not the record.
-     *
-     * @param  Collection<int, Memorization>  $records
-     */
-    private function attachSurahNames(Collection $records, QuranDataProvider $quran): void
-    {
-        $names = collect($quran->surahs())->pluck('name_ar', 'id');
-
-        foreach ($records as $record) {
-            $record->setAttribute('surah_name', $names->get($record->surah_id));
-        }
     }
 }

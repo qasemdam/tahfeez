@@ -46,6 +46,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-032 | Attendance record: historical group + one row per student/day | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-033 | Teacher correction window for attendance | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-034 | Memorization schema: historical group, ayah numbers, dataset version | **Resolved 2026-10-31** (Phase 1) | — |
+| OD-035 | Review schema and its separation from memorization | **Resolved 2026-10-31** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -636,5 +637,50 @@ memorizations
 - **No evaluation coupling:** no `achievement_pct`, no `weighted_score`, no
   ranking. Memorization stores raw amount and quality data only (BR-ATT-04
   logic applies equally here).
+
+**Blocks:** nothing.
+
+---
+
+## OD-035 — Review schema and its separation from memorization · **RESOLVED 2026-10-31** (Phase 1)
+
+**Question.** `database.md` defines `reviews` with the same shared measurement
+block as `memorizations`, but the slice needed the same additions made for
+memorization (historical group, in-surah ayah numbers, dataset version label)
+without duplicating the amount pipeline.
+
+**Decision.** `reviews` mirrors `memorizations` but remains a separate table,
+model, endpoints and report source (BR-REV-01):
+
+```text
+reviews
+  center_id · student_id · group_id · teacher_id
+  review_date
+  surah_id · from_ayah_id · to_ayah_id
+  from_ayah_number · to_ayah_number
+  from_page · to_page
+  amount_pages numeric(8,4) · amount_lines
+  amount_source CALCULATED | MANUAL
+  quran_dataset_version_id (no FK yet) · quran_dataset_version
+  grade · hifz_errors · tajweed_errors · reading_errors · notes
+  client_uuid · version · timestamps · deleted_at
+
+  unique (center_id, client_uuid)
+```
+
+- **`group_id` is historical**, like memorization and attendance.
+- **The amount pipeline is shared, not copied.** `ResolveQuranAmount` owns the
+  MANUAL/CALCULATED orchestration for both domains; the measurement formula
+  stays in `QuranDataProvider`. Review never hard-codes `/15`.
+- **Multiple reviews per student per day are allowed**; idempotency is by
+  `client_uuid`.
+- **`week_key` is deferred** with the evaluation slice; no weekly value is
+  computed here.
+- **Review never feeds memorization totals** (BR-REV-04): a review is not added
+  to `amount_pages` of memorization, and the two tables are queried separately.
+- **Teacher update window:** own records, same center business day; manager any
+  date. Delete is manager-only (`review.delete`); a teacher lacks it by default.
+- **The dataset version has no FK yet** because the Quran dataset table is part
+  of the blocked import (OD-029). The fixture label is stored for provenance.
 
 **Blocks:** nothing.
