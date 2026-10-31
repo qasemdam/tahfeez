@@ -43,6 +43,8 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-029 | **Edition conflict**: canonical 1405H vs the only official artifact (1441H) | **Open / Blocked** — next: written inquiry to KFGQPC | Phase 2 import |
 | OD-030 | Groups (حلقات) schema and teacher-assignment coupling | **Resolved 2026-10-31** (Phase 1, pending review) | — |
 | OD-031 | Role value `teacher` vs documented `muhaffiz` | Open — non-blocking | — |
+| OD-032 | Attendance record: historical group + one row per student/day | **Resolved 2026-10-31** (Phase 1) | — |
+| OD-033 | Teacher correction window for attendance | **Resolved 2026-10-31** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -516,3 +518,67 @@ Rules:
 **Recommendation:** option 1 for the MVP. The Arabic label is what users see; the stored value is an implementation identifier, and renaming it now buys no behaviour. If a public API or third-party integration ships, take option 2 in a dedicated, versioned change — not inside a feature slice.
 
 **Blocks:** nothing. The Groups slice uses the existing `teacher` value and labels it **المحفظ**.
+
+---
+
+## OD-032 — Attendance record: historical group + one row per student/day · **RESOLVED 2026-10-31** (Phase 1)
+
+**Question.** `database.md` defines `attendances` without a `group_id`, while the product needs to know which group a student was in when attendance was taken. The docs also use `teacher_id` and `late_minutes`, while the slice brief used `created_by` and `delay_minutes`.
+
+**Decision.** Follow the documented field names and add the missing historical reference:
+
+```text
+attendances
+  center_id · student_id · group_id · teacher_id
+  attendance_date · status · late_minutes · notes
+  client_uuid · version · timestamps · deleted_at
+
+  unique (center_id, student_id, attendance_date)
+  unique (center_id, client_uuid)
+```
+
+- `teacher_id` = who recorded it (the documented name for `created_by`).
+- `late_minutes` = the documented name for `delay_minutes`.
+- `group_id` is **required** and stores the group at recording time. It is never
+  updated when the student later moves groups. `RESTRICT` on delete protects
+  the reference; groups are soft-deleted, so normal deletion is unaffected.
+- One row per student per day, regardless of group (OD-007's per-day MVP
+  recommendation). Re-submitting the same day **updates** the row; the
+  original `group_id` and `teacher_id` are kept.
+- Statuses are exactly `present`, `excused_absence`, `unexcused_absence`,
+  `late` (BR-ATT-01). `late_minutes` is accepted only with `late`, must be
+  `>= 0`, and is cleared when the status changes away from `late`.
+- `client_uuid` makes a retried offline create idempotent; full sync is not
+  implemented in this slice.
+
+**Not coupled to evaluation.** Attendance is raw data. No automatic penalty,
+weight or grade is derived here (BR-ATT-04). The evaluation engine will decide
+later, explicitly, whether and how attendance participates.
+
+**Blocks:** nothing.
+
+---
+
+## OD-033 — Teacher correction window for attendance · **RESOLVED 2026-10-31** (Phase 1)
+
+**Question.** May a teacher correct an attendance record from an earlier day?
+
+**Options.**
+
+1. Teacher may edit any record in their own group.
+2. Teacher may edit only the center's current business day; older corrections
+   require a manager.
+3. Teachers may not edit at all.
+
+**Decision.** Option 2. `attendance.update` is a teacher default, but the
+policy also requires the record's date to equal **today in the center's
+timezone**. Managers may correct any date in their center. The same-day rule
+mirrors the documented precedent for memorization updates and avoids silently
+rewriting historical attendance.
+
+**Enforcement.** `AttendancePolicy::update()` checks center, permission, group
+ownership (teacher) and the date. The controller resolves the record through
+`Attendance::visibleTo()`, so an out-of-scope id is 404 before the policy
+returns 403.
+
+**Blocks:** nothing.

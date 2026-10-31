@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../auth/domain/session.dart';
@@ -21,7 +22,16 @@ class GroupDetailsPage extends ConsumerWidget {
     final bool canManage = user?.isManager ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('تفاصيل الحلقة')),
+      appBar: AppBar(
+        title: const Text('تفاصيل الحلقة'),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'الحضور',
+            onPressed: () => context.push('/groups/$groupId/attendance'),
+            icon: const Icon(Icons.fact_check_rounded),
+          ),
+        ],
+      ),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () =>

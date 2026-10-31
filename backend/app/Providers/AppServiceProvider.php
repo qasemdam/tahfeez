@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Domain\Attendance\Models\Attendance;
 use App\Domain\Groups\Models\Group;
 use App\Domain\Students\Models\Student;
+use App\Policies\AttendancePolicy;
 use App\Policies\GroupPolicy;
 use App\Policies\StudentPolicy;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -36,5 +38,6 @@ class AppServiceProvider extends ServiceProvider
         // by convention. Register it explicitly.
         Gate::policy(Student::class, StudentPolicy::class);
         Gate::policy(Group::class, GroupPolicy::class);
+        Gate::policy(Attendance::class, AttendancePolicy::class);
     }
 }

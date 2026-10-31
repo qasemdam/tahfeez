@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\GroupAttendanceController;
 use App\Http\Controllers\Api\V1\GroupController;
 use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\TeacherController;
@@ -31,5 +33,11 @@ Route::prefix('v1')->group(function (): void {
 
         Route::post('groups/{group}/students', [GroupController::class, 'addStudent']);
         Route::delete('groups/{group}/students/{student}', [GroupController::class, 'removeStudent']);
+
+        Route::apiResource('attendance', AttendanceController::class)
+            ->only(['index', 'store', 'show', 'update']);
+
+        Route::get('groups/{group}/attendance', [GroupAttendanceController::class, 'sheet']);
+        Route::post('groups/{group}/attendance', [GroupAttendanceController::class, 'store']);
     });
 });

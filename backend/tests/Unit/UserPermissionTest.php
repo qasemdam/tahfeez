@@ -28,6 +28,7 @@ class UserPermissionTest extends TestCase
         $this->assertTrue($teacher->hasPermission('groups.view'));
         $this->assertTrue($teacher->hasPermission('memorization.record'));
         $this->assertTrue($teacher->hasPermission('attendance.record'));
+        $this->assertTrue($teacher->hasPermission('attendance.update'));
         $this->assertTrue($teacher->hasPermission('evaluation.view'));
     }
 

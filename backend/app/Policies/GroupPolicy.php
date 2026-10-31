@@ -51,4 +51,15 @@ class GroupPolicy
             && $user->hasPermission('groups.manage_students')
             && ($user->isManager() || $group->teacher_id === $user->id);
     }
+
+    /**
+     * Recording attendance for a group: a manager anywhere in the center, or
+     * the owning teacher (attendance.record is a teacher default).
+     */
+    public function recordAttendance(User $user, Group $group): bool
+    {
+        return $group->center_id === $user->center_id
+            && $user->hasPermission('attendance.record')
+            && ($user->isManager() || $group->teacher_id === $user->id);
+    }
 }
