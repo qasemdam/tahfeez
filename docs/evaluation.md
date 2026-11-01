@@ -347,11 +347,91 @@ aggregate is clamped to 0..100; the achievement is never clamped.
 
 ### 10.5 Deferred
 
-- Weekly evaluation rows, snapshots, period boundaries and recompute policy.
-- Template/profile persistence and publishing.
+- Template/profile publishing (a profile version carries its rule set inline
+  until the template tables ship — see §11.4).
 - The banded recitation rule-set scorer (§4).
-- Reports, dashboards, notifications and any UI.
+- Recompute/revision flow for approved weeks (BR-EVL-10) — see §11.5.
+- Reports, dashboards, notifications and any UI beyond the weekly screen.
 
 The engine's tests cover the baseline rows, no-normalisation, component
 separation, missing-data policies, weight validation, profile version
 carry-through, determinism and the two-scores separation.
+
+---
+
+## 11. Weekly evaluation (Phase 1 implementation)
+
+The weekly slice is **orchestration only**: it resolves the period, gathers the
+week's records, calls the engine once, freezes the inputs and the result, and
+persists one row. It never re-runs the engine for an existing week.
+
+### 11.1 Pipeline
+
+```text
+POST /weekly-evaluations { student_id, week_date }
+  1. resolve the student inside the actor's center (404 outside)
+  2. resolve the active group membership → historical group/teacher snapshot
+  3. WeekPeriodResolver(date, centers.weekly_evaluation_start_day, timezone)
+  4. idempotency: client_uuid → then (center, student, week_key)
+  5. resolve the profile version effective at week_start
+  6. aggregate memorization / review / recitation / attendance for the period
+  7. EvaluationEngine::evaluate(EvaluationInput)
+  8. persist scalars + rules_snapshot + result_snapshot in one transaction
+```
+
+The controller holds no evaluation logic; `CreateWeeklyEvaluation` owns the
+orchestration.
+
+### 11.2 Week resolver
+
+`WeekPeriodResolver::resolve(DateTimeImmutable $reference, WeekStartDay $start)`
+returns `week_start`, `week_end` and `week_key` (= `week_start`).
+
+- Deterministic: the reference date is always passed in, never `now()` inside
+  the resolver.
+- The reference is built in the **center timezone**, so a request at 23:30 in
+  the center's local day does not land in the neighbouring week.
+- `week_key` is the canonical Gregorian start date of the week — a date, not a
+  denormalised `2026-W43` string. It is the uniqueness key only; aggregation
+  always uses `date BETWEEN week_start AND week_end` (BR-EVL-16).
+- No weekday literal appears in the logic; `WeekStartDay` is an enum and the
+  center setting is the only source.
+
+### 11.3 Snapshot
+
+Two JSON columns, both written once:
+
+| Column | Content |
+|---|---|
+| `rules_snapshot` | profile version + `effective_from`, required pages, week boundaries, `weekly_evaluation_start_day`, center timezone, the full rule set JSON, recitation grade scores, and the aggregated inputs (memorization pages, review pages, recitation scores/errors, attendance counts) |
+| `result_snapshot` | the engine's `EvaluationResult::toArray()`: achievement, weighted score, completeness, blocked criteria, profile version, and every component with raw/normalized/weighted values and explanation |
+
+Reading a stored evaluation never consults the current profile, rule set or
+center setting. Changing any of them afterwards leaves the row untouched.
+
+### 11.4 Profile versions without templates
+
+`evaluation_profile_versions` carries `required_pages`, `effective_from` and
+the rule set inline. The template tables (`evaluation_templates`,
+`evaluation_template_versions`, `evaluation_criteria`) remain a Phase 6
+concern; `template_version_id` is therefore stored as a nullable integer with
+no FK. This is recorded as OD-038.
+
+### 11.5 Immutability and duplicates
+
+- Unique `(center_id, student_id, week_key)` — one row per student-week.
+- Unique `(center_id, client_uuid)` for retries.
+- A duplicate create returns the stored row with **200** instead of 201. It is
+  never a recomputation.
+- `PATCH` accepts exactly one transition, `status: approved`. Computed values
+  and both snapshots are immutable. The revision flow of BR-EVL-10 is deferred
+  (OD-038): a correction today means deleting and recomputing a draft week.
+
+### 11.6 Flutter
+
+`/students/:id/weekly-evaluation` shows the stored weeks of one student and
+computes a new one. The client sends `week_date` (any day in the week) and
+renders the boundaries the server returns; it never derives a week itself and
+never hard-codes a start day. Achievement is displayed uncapped, and the
+weighted score shows `غير محسوبة` when a criterion blocked the computation.
+

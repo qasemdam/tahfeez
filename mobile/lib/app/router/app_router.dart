@@ -9,6 +9,7 @@ import '../../features/memorization/presentation/memorization_page.dart';
 import '../../features/recitation/presentation/recitation_page.dart';
 import '../../features/review/presentation/review_page.dart';
 import '../../features/students/presentation/students_page.dart';
+import '../../features/weekly_evaluation/presentation/weekly_evaluation_page.dart';
 import 'splash_page.dart';
 
 final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
@@ -47,6 +48,13 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: '/students/:id/recitation',
         builder: (_, GoRouterState state) => RecitationPage(
+          studentId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+          studentName: state.uri.queryParameters['name'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/students/:id/weekly-evaluation',
+        builder: (_, GoRouterState state) => WeeklyEvaluationPage(
           studentId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
           studentName: state.uri.queryParameters['name'] ?? '',
         ),

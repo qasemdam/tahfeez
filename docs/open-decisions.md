@@ -49,6 +49,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-035 | Review schema and its separation from memorization | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-036 | Recitation scope: standalone, no amount, no score yet | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-037 | Evaluation engine calculator contracts; no default weights | **Resolved 2026-10-31** (Phase 1) | — |
+| OD-038 | Weekly evaluation: week key, inline rule set, deferred revisions | **Resolved 2026-11-01** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -775,3 +776,50 @@ business values.
   `weighted_score` is 0..100 or null.
 
 **Blocks:** nothing. The weekly-evaluation slice can consume the engine as-is.
+
+---
+
+## OD-038 — Weekly evaluation: week key, inline rule set, deferred revisions · **RESOLVED 2026-11-01** (Phase 1)
+
+**Question.** `database.md` described `weekly_evaluations` with
+`week_start`/`week_end`, a `revision` chain, `computed_by`/`approved_by` and a
+`components` column, and a profile version that points at a template version.
+The template tables are a Phase 6 deliverable and none of them exist yet, so
+the slice had to decide what to store now without pre-building Phase 6.
+
+**Decision.**
+
+- **`week_key` is the canonical week start date.** It is a `date`, not a
+  `2026-W43` string, and it exists to carry the uniqueness constraint
+  `(center_id, student_id, week_key)`. Aggregation always uses
+  `date BETWEEN week_start_date AND week_end_date`, so BR-EVL-16 still holds:
+  nothing is bucketed by `week_key`.
+- **Three period columns, not two.** `week_key`, `week_start_date` and
+  `week_end_date` are all stored, plus `weekly_evaluation_start_day` and the
+  center timezone inside `rules_snapshot`. A later change to the center
+  setting cannot move a stored week.
+- **The rule set lives inline in the profile version.** `evaluation_profile_versions`
+  carries `required_pages`, `effective_from` and `rule_set` (JSON). The engine
+  consumes it directly and the weekly row copies it into `rules_snapshot`.
+  `template_version_id` is stored as a nullable integer with **no FK** until
+  the template tables ship.
+- **Two snapshot columns instead of many scalar columns.** `rules_snapshot`
+  freezes the inputs and configuration; `result_snapshot` freezes the engine
+  output including every component. Reading a historical row never re-runs the
+  engine and never reads the current profile or center setting.
+- **Revisions are deferred.** Phase 1 supports only `computed → approved`.
+  BR-EVL-10's revision chain (mandatory reason, previous revision retrievable)
+  is not implemented; a correction today means deleting and recomputing a
+  draft week. Deferred deliberately rather than half-built — it needs the
+  audit-log slice to be trustworthy.
+- **Duplicates return the stored row.** A retried `client_uuid`, or a second
+  create for the same student/week, returns `200` with the existing row. There
+  is no recompute-on-duplicate path (BR-EVL-14, BR-EVL-17).
+- **No profile means the documented default.** A student without a profile
+  version is evaluated with `required_pages = 1.00` (BR-EVL-01) and no rule
+  set, so `weighted_score` is null and only the baseline achievement is
+  produced. The row records that no profile version was used.
+
+**Blocks:** nothing. Phase 6 (templates) can add `template_version_id` FKs and
+a revision chain without rewriting stored rows.
+

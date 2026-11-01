@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Attendance\Models\Attendance;
+use App\Domain\Evaluation\Models\WeeklyEvaluation;
 use App\Domain\Groups\Models\Group;
 use App\Domain\Memorization\Models\Memorization;
 use App\Domain\Quran\Contracts\QuranDataProvider;
@@ -16,6 +17,7 @@ use App\Policies\MemorizationPolicy;
 use App\Policies\RecitationPolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\StudentPolicy;
+use App\Policies\WeeklyEvaluationPolicy;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -52,5 +54,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Memorization::class, MemorizationPolicy::class);
         Gate::policy(Review::class, ReviewPolicy::class);
         Gate::policy(Recitation::class, RecitationPolicy::class);
+        Gate::policy(WeeklyEvaluation::class, WeeklyEvaluationPolicy::class);
     }
 }

@@ -336,7 +336,11 @@ Constraints: `check (weight > 0 and weight <= 100)` · `unique (template_version
 Publish-time validation (in `PublishTemplateVersion` action, covered by tests): `SUM(weight) = 100.00` exactly (BR-EVL-06).
 
 ### `evaluation_profiles`
-`id` · `center_id` · `student_id` unique · `active_version_id` null · timestamps
+`id` · `center_id` · `student_id` · timestamps
+
+Constraint: `unique (center_id, student_id)` — one stable profile per student.
+The profile itself holds no values; everything that can change lives in a
+version (BR-EVL-05).
 
 ### `evaluation_profile_versions`
 | Column | Type | Notes |
@@ -345,17 +349,19 @@ Publish-time validation (in `PublishTemplateVersion` action, covered by tests): 
 | center_id | bigint FK | |
 | profile_id | bigint FK | |
 | version_number | integer | |
-| template_version_id | bigint FK | |
 | required_pages | numeric(6,2) | default 1.00 (BR-EVL-01) |
-| params | jsonb | per-student overrides |
 | effective_from | date | |
-| effective_to | date null | |
-| created_by | bigint FK | |
-| reason | varchar(255) | why the profile changed |
-| snapshot | jsonb | full resolved rules at creation time |
+| rule_set | jsonb null | `{version, criteria[], recitation_grade_scores{}}` — the exact rule set the engine consumes |
+| created_by | bigint FK null | |
+| reason | varchar(255) null | why the profile changed |
+| created_at / updated_at | timestamptz | |
 
-Constraints: `unique (profile_id, version_number)` · `index (profile_id, effective_from desc)`
-Immutability: no updates after creation; a change inserts a new version and closes the previous one (BR-EVL-09).
+Constraints: `unique (profile_id, version_number)` · `index (profile_id, effective_from)`
+
+The rule set is embedded here until the template tables ship (OD-038), so a
+weekly evaluation can snapshot it without a join. A change inserts a new
+version with a later `effective_from`; the version in force at `week_start`
+wins, and a version effective after the week start is rejected.
 
 ### `weekly_evaluations`
 | Column | Type | Notes |
@@ -363,29 +369,39 @@ Immutability: no updates after creation; a change inserts a new version and clos
 | id | bigint PK | |
 | center_id | bigint FK | |
 | student_id | bigint FK | |
-| week_start / week_end | date | center-local; **stored period boundaries, never recomputed** (BR-EVL-16) |
-| week_start_day | varchar(10) | snapshot of the `WeekStartDay` in force when this period was opened |
-| profile_version_id | bigint FK | |
-| template_version_id | bigint FK | |
+| group_id | bigint FK | historical snapshot of the student's group at creation |
+| teacher_id | bigint FK | historical author of the record |
+| week_key | date | canonical week start; **uniqueness key only**, never used for aggregation |
+| week_start_date / week_end_date | date | center-local boundaries, frozen |
+| weekly_evaluation_start_day | varchar(10) | snapshot of the `WeekStartDay` in force |
+| evaluation_profile_version_id | bigint FK null | |
+| evaluation_profile_version | integer null | version number, denormalised for display |
+| template_version_id | bigint null | no FK: template tables are Phase 6 (OD-038) |
 | required_pages | numeric(6,2) | snapshot |
-| actual_pages | numeric(8,4) | snapshot of aggregated actual |
-| achievement_pct | numeric(8,2) | 250.00 for 2.5 pages @ 1 page |
-| weighted_score | numeric(6,2) null | advanced template result |
-| components | jsonb | per-criterion raw + normalized + weighted |
-| rules_snapshot | jsonb | template, weights, calculator versions, params |
-| status | varchar(12) | `draft` \| `computed` \| `approved` \| `locked` |
-| revision | integer | starts at 1 |
-| computed_at / approved_at | timestamptz null | |
-| computed_by / approved_by | bigint FK null | |
-| revision_reason | varchar(255) null | mandatory when revision > 1 |
+| actual_pages | numeric(8,4) | snapshot of the aggregated memorization amount |
+| achievement_percentage | numeric(8,2) | uncapped: `200.00` for 2 pages @ 1 |
+| weighted_score | numeric(6,2) null | 0–100, null when a criterion blocked the computation |
+| is_complete | boolean | false when a `block` policy fired |
+| status | varchar(12) | `computed` \| `approved` |
+| rules_snapshot | jsonb | profile version, week boundaries, start day, timezone, rule set, aggregated inputs |
+| result_snapshot | jsonb | the engine result: achievement, weighted score, components, blocked criteria |
+| client_uuid | uuid null | idempotent retries |
+| version | integer | optimistic concurrency |
 | created_at / updated_at | timestamptz | |
+| deleted_at | timestamptz null | soft delete |
 
 Constraints:
-- `unique (center_id, student_id, week_start)` — one current row per student-week
-- `index (center_id, week_start, status)`
-- `check (achievement_pct >= 0)` · `check (revision >= 1)`
+- `unique (center_id, student_id, week_key)` — one row per student-week
+- `unique (center_id, client_uuid)`
+- `index (center_id, week_start_date)` · `index (center_id, group_id, week_start_date)` · `index (center_id, student_id, week_start_date)`
+- `check (required_pages > 0)` · `check (actual_pages >= 0)` · `check (achievement_percentage >= 0)`
+- `check (weighted_score is null or 0 <= weighted_score <= 100)` · `check (status in ('computed','approved'))`
 
-**Why snapshot columns instead of joins:** an approved grade must remain explainable a year later even if the template was archived, a criterion renamed, or the student's profile changed. The row carries its own explanation. The same reasoning applies to the period: `week_start`, `week_end` and `week_start_day` are copied onto the row, so a later change to the center's `weekly_evaluation_start_day` cannot retroactively move a student's week.
+**Why snapshot columns instead of joins:** an approved grade must remain explainable a year later even if the template was archived, a criterion renamed, or the student's profile changed. The row carries its own explanation. The same reasoning applies to the period: `week_start_date`, `week_end_date` and `weekly_evaluation_start_day` are copied onto the row, so a later change to the center's `weekly_evaluation_start_day` cannot retroactively move a student's week.
+
+**Revisions are deferred.** BR-EVL-10 describes a revision chain; the Phase 1
+row has no `revision`/`revision_reason`/`computed_by`/`approved_by` columns and
+only allows the `computed → approved` transition. See OD-038.
 
 ---
 

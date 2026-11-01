@@ -134,6 +134,8 @@ Conventions:
 | BR-EVL-14 | Weekly evaluation generation is **idempotent**: recomputing the same week with unchanged inputs yields the same revision content, not a new revision. |
 | BR-EVL-15 | **Two separate values, never mixed.** Basic achievement (`achievement_pct`, uncapped, §11) and the advanced weighted score (`weighted_score`, normalised **0–100**, §12) are stored in separate columns, displayed separately, and never averaged, combined, substituted or used interchangeably. No report may present one as the other. |
 | BR-EVL-16 | A weekly evaluation owns its **period boundaries** (`week_start`, `week_end`, `week_start_day`) as immutable snapshot data. Recomputing a historical week uses those stored boundaries, never the center's current setting. Record aggregation uses `session_date BETWEEN week_start AND week_end` — never a denormalised `week_key`. |
+| BR-EVL-17 | One weekly evaluation per `(center, student, week)`. A repeated create — same `client_uuid`, or the same student/week — returns the **stored** row with `200`, never a second row and never a recomputation. |
+| BR-EVL-18 | Only the `computed → approved` transition is mutable. Computed values and both snapshots are immutable after creation; the revision flow of BR-EVL-10 is deferred (OD-038). |
 
 ## 10. Reports
 

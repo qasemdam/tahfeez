@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\RecitationController;
 use App\Http\Controllers\Api\V1\ReviewController;
 use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\TeacherController;
+use App\Http\Controllers\Api\V1\WeeklyEvaluationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -51,5 +52,10 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('reviews', ReviewController::class);
 
         Route::apiResource('recitations', RecitationController::class);
+
+        Route::get('weekly-evaluations', [WeeklyEvaluationController::class, 'index']);
+        Route::post('weekly-evaluations', [WeeklyEvaluationController::class, 'store']);
+        Route::get('weekly-evaluations/{weeklyEvaluation}', [WeeklyEvaluationController::class, 'show']);
+        Route::patch('weekly-evaluations/{weeklyEvaluation}', [WeeklyEvaluationController::class, 'update']);
     });
 });

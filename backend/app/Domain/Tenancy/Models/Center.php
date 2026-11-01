@@ -2,6 +2,7 @@
 
 namespace App\Domain\Tenancy\Models;
 
+use App\Domain\Evaluation\Enums\WeekStartDay;
 use App\Domain\Students\Models\Student;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $name
  * @property string $slug
  * @property string $timezone
- * @property string $weekly_evaluation_start_day
+ * @property WeekStartDay $weekly_evaluation_start_day
  */
 class Center extends Model
 {
@@ -37,6 +38,7 @@ class Center extends Model
         return [
             'settings' => 'array',
             'is_active' => 'boolean',
+            'weekly_evaluation_start_day' => WeekStartDay::class,
             'weekly_evaluation_start_day_effective_from' => 'date',
         ];
     }

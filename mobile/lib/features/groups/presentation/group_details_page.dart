@@ -113,6 +113,10 @@ class GroupDetailsPage extends ConsumerWidget {
                             context.push(
                               '/students/${student.id}/recitation?name=${Uri.encodeComponent(student.fullName)}',
                             );
+                          } else if (action == 'weekly-evaluation') {
+                            context.push(
+                              '/students/${student.id}/weekly-evaluation?name=${Uri.encodeComponent(student.fullName)}',
+                            );
                           } else if (action == 'remove') {
                             _removeStudent(context, ref, student);
                           }
@@ -130,6 +134,10 @@ class GroupDetailsPage extends ConsumerWidget {
                               const PopupMenuItem<String>(
                                 value: 'recitation',
                                 child: Text('تسجيل تسميع'),
+                              ),
+                              const PopupMenuItem<String>(
+                                value: 'weekly-evaluation',
+                                child: Text('التقييم الأسبوعي'),
                               ),
                               if (canManage)
                                 const PopupMenuItem<String>(
