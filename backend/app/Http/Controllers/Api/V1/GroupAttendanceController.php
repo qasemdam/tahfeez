@@ -64,7 +64,7 @@ class GroupAttendanceController extends Controller
         $records = Attendance::query()
             ->where('center_id', $group->center_id)
             ->whereIn('student_id', $studentIds)
-            ->whereDate('attendance_date', $date)
+            ->where('attendance_date', $date)
             ->get()
             ->keyBy('student_id');
 

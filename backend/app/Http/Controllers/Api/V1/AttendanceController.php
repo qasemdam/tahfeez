@@ -34,7 +34,7 @@ class AttendanceController extends Controller
 
         if ($request->filled('date')) {
             $request->validate(['date' => ['date_format:Y-m-d']]);
-            $query->whereDate('attendance_date', (string) $request->query('date'));
+            $query->where('attendance_date', (string) $request->query('date'));
         }
 
         return AttendanceResource::collection(

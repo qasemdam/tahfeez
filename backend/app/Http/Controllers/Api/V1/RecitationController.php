@@ -40,7 +40,7 @@ class RecitationController extends Controller
 
         if ($request->filled('date')) {
             $request->validate(['date' => ['date_format:Y-m-d']]);
-            $query->whereDate('recitation_date', (string) $request->query('date'));
+            $query->where('recitation_date', (string) $request->query('date'));
         }
 
         $records = $query->orderByDesc('recitation_date')->orderByDesc('id')->paginate(50);
