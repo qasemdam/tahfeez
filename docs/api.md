@@ -54,6 +54,12 @@ Status codes used: `200` `201` `204` `400` `401` `403` `404` `409` `410` `422` `
 
 Token payload never contains authorization decisions — only identity and device. Permissions are resolved per request so a revoked permission takes effect immediately (BR-AUT-04).
 
+`POST /auth/login` is the only unauthenticated write path, so it is rate-limited:
+5 attempts per minute per (email + address) and 30 per minute per address, then
+`429`. The limit is keyed by the credential pair, so many users behind one NAT
+are unaffected. Tokens are stored as SHA-256 hashes only; logout deletes the
+device's token row, and a revoked or expired token is `401`.
+
 ---
 
 ## 3. Reference data

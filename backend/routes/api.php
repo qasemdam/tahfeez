@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Route;
  */
 Route::prefix('v1')->group(function (): void {
     // Public
-    Route::post('auth/login', [AuthController::class, 'login']);
+    Route::post('auth/login', [AuthController::class, 'login'])
+        ->middleware('throttle:login');
 
     // Authenticated
     Route::middleware('auth.api')->group(function (): void {
