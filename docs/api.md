@@ -177,7 +177,7 @@ Publishing an invalid template (weights ≠ 100) returns `422` with `errors.weig
 |---|---|---|
 | GET | `/dashboard` | Center KPIs for a period |
 | GET | `/reports/weekly` | `?week_key=` or `?week_start_date=`, plus `group_id` / `student_id` — implemented, see §7.1 |
-| GET | `/reports/monthly` | `?month=YYYY-MM` |
+| GET | `/reports/monthly` | `?month=YYYY-MM`, plus `group_id` / `student_id` — implemented, see §7.2 |
 | GET | `/reports/students/{id}` | Student report |
 | GET | `/reports/attendance` | `?from=&to=&student_id=` |
 | GET | `/reports/memorization` | `?from=&to=` |
@@ -303,3 +303,68 @@ Detailed contract: `offline-sync.md`.
 4. **Server recomputes every derived value** (amounts, percentages, scores). Client values are hints for UX only.
 5. **Authorization is a policy call per record**, not a middleware role check alone.
 6. **OpenAPI spec is generated** from routes + annotations in Phase 1 and committed to `docs/api/openapi.yaml`; drift fails CI.
+
+### 7.2 Monthly report
+
+`GET /reports/monthly` · permission `reports.view` · read-only.
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `month` | `YYYY-MM` | **required**. A calendar month, always the 1st to the last day. It is never derived from `weekly_evaluation_start_day` and never defaulted to the current month |
+| `group_id` | int | optional; out-of-scope ids simply return no rows |
+| `student_id` | int | optional |
+
+A missing or malformed `month` (`2026-1`, `2026-13`, `invalid`) is `422` with
+`errors.month`.
+
+```json
+{
+  "data": {
+    "month": {
+      "month_key": "2026-10",
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-31"
+    },
+    "students": [
+      {
+        "student": { "id": 1, "name": "..." },
+        "group": { "id": 2, "name": "..." },
+        "teacher": { "id": 3, "name": "..." },
+        "attendance": { "present": 15, "late": 2, "excused_absence": 1, "unexcused_absence": 0 },
+        "memorization": {
+          "required_pages": "4.00",
+          "actual_pages": "6.0000",
+          "achievement_percentage": "150.00",
+          "sessions": 8
+        },
+        "review": { "pages": "3.5000", "sessions": 6 },
+        "recitation": {
+          "sessions": 5,
+          "grades": { "good": 4, "excellent": 1 },
+          "errors": { "hifz": 3, "tajweed": 1, "reading": 2 }
+        },
+        "weekly_evaluations": { "count": 4, "completed": 4, "approved": 3, "computed": 1 }
+      }
+    ],
+    "totals": { "students": 1 }
+  }
+}
+```
+
+Notes:
+
+- **`required_pages` is the sum of the requirements frozen in the stored weekly
+  evaluations of the month.** A week without an evaluation contributes nothing;
+  it is never replaced by `weeks × default` or by the current profile.
+- **`achievement_percentage` is null when that sum is zero** — the ratio is
+  undefined, and an undefined ratio is not reported as `0%`. Otherwise it is
+  uncapped (`6.0000` over `4.00` → `150.00`).
+- `weekly_evaluations` counts the stored rows whose `week_start_date` falls
+  inside the month. `computed` is never promoted to `approved`.
+- `group` / `teacher` come from the latest stored evaluation of the month (the
+  group that graded it), falling back to the student's current membership.
+  Rows themselves are the student's current membership, exactly like §7.1.
+- Review stays separate from memorization; recitation reports stored sessions,
+  grade counts and error totals with no derived score; no attendance rate is
+  invented.
+- The report never creates a weekly evaluation and never runs the engine.

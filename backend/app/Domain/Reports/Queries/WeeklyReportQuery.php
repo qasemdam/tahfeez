@@ -8,16 +8,17 @@ use App\Domain\Evaluation\Models\WeeklyEvaluation;
 use App\Domain\Evaluation\Support\Achievement;
 use App\Domain\Evaluation\Support\RequiredPages;
 use App\Domain\Evaluation\ValueObjects\WeekPeriod;
-use App\Domain\Groups\Models\Group;
 use App\Domain\Groups\Models\GroupMembership;
 use App\Domain\Memorization\Models\Memorization;
 use App\Domain\Recitation\Models\Recitation;
 use App\Domain\Reports\DTOs\StudentWeeklyRow;
 use App\Domain\Reports\DTOs\WeeklyReport;
+use App\Domain\Reports\Support\AmountTotals;
+use App\Domain\Reports\Support\GroupLookup;
+use App\Domain\Reports\Support\StudentScope;
 use App\Domain\Review\Models\Review;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
-use Brick\Math\BigDecimal;
 use Illuminate\Support\Collection;
 
 /**
@@ -38,39 +39,12 @@ final class WeeklyReportQuery
         ?int $groupId = null,
         ?int $studentId = null,
     ): WeeklyReport {
-        // Scope is structural: a teacher only ever resolves their own groups,
-        // so an out-of-scope group or student simply yields no rows.
-        $groupIds = Group::query()
-            ->visibleTo($actor)
-            ->where('groups.center_id', $center->id)
-            ->when($groupId !== null, static fn ($query) => $query->whereKey($groupId))
-            ->pluck('id');
-
-        if ($groupIds->isEmpty()) {
-            return new WeeklyReport($period, []);
-        }
-
-        $memberships = GroupMembership::query()
-            ->where('center_id', $center->id)
-            ->whereNull('left_at')
-            ->whereIn('group_id', $groupIds)
-            ->when($studentId !== null, static fn ($query) => $query->where('student_id', $studentId))
-            ->whereHas('student')
-            ->with([
-                'student:id,full_name',
-                'group:id,name,teacher_id',
-                'group.teacher:id,name',
-            ])
-            ->orderBy('student_id')
-            ->orderBy('id')
-            ->get();
+        $memberships = StudentScope::memberships($actor, $center, $groupId, $studentId);
 
         if ($memberships->isEmpty()) {
             return new WeeklyReport($period, []);
         }
 
-        // A student with two active memberships appears once, on the first row.
-        $memberships = $memberships->unique('student_id')->values();
         $studentIds = $memberships->pluck('student_id')->all();
 
         $attendance = $this->attendanceByStudent($center, $studentIds, $period);
@@ -83,7 +57,10 @@ final class WeeklyReportQuery
         // A stored evaluation froze the group and teacher that graded the week.
         // Those may be a group the student has since left, so they are resolved
         // separately instead of being replaced by the current membership.
-        $groups = $this->groupsForRows($memberships, $evaluations);
+        $groups = GroupLookup::resolve(
+            $memberships,
+            $evaluations->pluck('group_id')->filter()->all(),
+        );
 
         $rows = $memberships->map(function (GroupMembership $membership) use (
             $attendance,
@@ -190,7 +167,7 @@ final class WeeklyReportQuery
      */
     private function memorizationByStudent(Center $center, array $studentIds, WeekPeriod $period): array
     {
-        return $this->sumAmounts(
+        return AmountTotals::byStudent(
             Memorization::query()
                 ->where('center_id', $center->id)
                 ->whereIn('student_id', $studentIds)
@@ -205,7 +182,7 @@ final class WeeklyReportQuery
      */
     private function reviewByStudent(Center $center, array $studentIds, WeekPeriod $period): array
     {
-        return $this->sumAmounts(
+        return AmountTotals::byStudent(
             Review::query()
                 ->where('center_id', $center->id)
                 ->whereIn('student_id', $studentIds)
@@ -304,73 +281,6 @@ final class WeeklyReportQuery
         foreach ($rows as $row) {
             $studentId = (int) $row->student_id;
             $result[$studentId] ??= (string) $row->required_pages;
-        }
-
-        return $result;
-    }
-
-    /**
-     * The groups a row can point at: the current memberships plus any group an
-     * evaluation froze. A group the student has since left is still readable
-     * (soft-deleted groups included), because it is part of the history.
-     *
-     * @param  Collection<int, GroupMembership>  $memberships
-     * @param  Collection<int, WeeklyEvaluation>  $evaluations
-     * @return Collection<int, Group>
-     */
-    private function groupsForRows(Collection $memberships, Collection $evaluations): Collection
-    {
-        $groups = $memberships
-            ->map(static fn (GroupMembership $membership): ?Group => $membership->group)
-            ->filter()
-            ->keyBy(static fn (Group $group): int => (int) $group->id);
-
-        $missing = $evaluations
-            ->pluck('group_id')
-            ->filter()
-            ->map(static fn (mixed $id): int => (int) $id)
-            ->unique()
-            ->reject(static fn (int $id): bool => $groups->has($id));
-
-        if ($missing->isEmpty()) {
-            return $groups;
-        }
-
-        $extra = Group::withTrashed()
-            ->with(['teacher' => static fn ($query) => $query->withTrashed()])
-            ->whereIn('id', $missing->all())
-            ->get();
-
-        foreach ($extra as $group) {
-            $groups->put((int) $group->id, $group);
-        }
-
-        return $groups;
-    }
-
-    /**
-     * @param  Collection<int, mixed>  $rows
-     * @return array<int, array{pages: string, sessions: int}>
-     */
-    private function sumAmounts(Collection $rows): array
-    {
-        $sums = [];
-        $counts = [];
-
-        foreach ($rows as $row) {
-            $studentId = (int) $row->student_id;
-            $sums[$studentId] = ($sums[$studentId] ?? BigDecimal::zero())
-                ->plus(BigDecimal::of((string) $row->amount_pages));
-            $counts[$studentId] = ($counts[$studentId] ?? 0) + 1;
-        }
-
-        $result = [];
-
-        foreach ($sums as $studentId => $sum) {
-            $result[$studentId] = [
-                'pages' => (string) $sum->toScale(4),
-                'sessions' => $counts[$studentId],
-            ];
         }
 
         return $result;

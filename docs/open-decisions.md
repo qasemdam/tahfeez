@@ -51,6 +51,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-037 | Evaluation engine calculator contracts; no default weights | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-038 | Weekly evaluation: week key, inline rule set, deferred revisions | **Resolved 2026-11-01** (Phase 1) | — |
 | OD-039 | Weekly report period input and requirement source | **Resolved 2026-11-01** (Phase 1) | — |
+| OD-040 | Monthly report: calendar month and requirement coverage | **Resolved 2026-11-01** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -897,3 +898,45 @@ Three contract fixes after a deep review of the weekly report:
   historical group ids and only runs when an evaluation points outside the
   already-loaded groups.
 
+
+---
+
+## OD-040 — Monthly report: calendar month and requirement coverage · **RESOLVED 2026-11-01** (Phase 1)
+
+**Question.** A monthly report needs a period and a monthly requirement, but
+the system only ever stores weekly evaluations. Summing requirements for weeks
+that were never evaluated would mean inventing them; reporting `0%` for a month
+with no evaluations would be worse — it reads as "the student did nothing".
+
+**Decision.**
+
+- **The month is a calendar month** (`YYYY-MM`, 1st → last day) in the center
+  timezone. It is deliberately *not* derived from `weekly_evaluation_start_day`:
+  a month is not an evaluation week, and reusing the week setting would make the
+  report depend on unrelated configuration. There is no "current month" default
+  — a missing `month` is a validation error.
+- **The monthly requirement is the sum of `required_pages` of the stored weekly
+  evaluations whose `week_start_date` falls inside the month.** A week with no
+  evaluation contributes nothing. The alternatives were rejected explicitly:
+  `weeks × RequiredPages::DEFAULT` invents a requirement, and reading the
+  current profile rebuilds history from configuration that may have changed.
+- **`achievement_percentage` is `null` when that sum is zero.** The ratio is
+  undefined, so it is reported as null rather than `0.00`. When the sum is
+  positive the value is computed with the canonical uncapped formula
+  (`Achievement::percentage`), so a student above the requirement shows 150%,
+  250%, 300%.
+- **Coverage is visible through `weekly_evaluations.count`**, not through an
+  invented per-week field. A month with two of four weeks evaluated shows
+  `count: 2` next to a requirement of the two stored weeks, which is exactly the
+  data the system actually has. No `missing_weeks` / `evaluation_coverage` field
+  was added — that would be a new semantic the business rules do not define.
+- **`group` / `teacher` follow the latest stored evaluation of the month**, for
+  the same reason as the weekly report: an evaluation froze the group that
+  graded it. The row set itself stays the student's current membership.
+- **Shared support, not duplicated arithmetic.** `AmountTotals` (decimal
+  summation), `StudentScope` (membership + scope) and `GroupLookup` (historical
+  groups) moved into `App\Domain\Reports\Support` and are used by both reports,
+  so the weekly and monthly figures cannot drift apart.
+
+**Blocks:** nothing. A future student/attendance report can reuse the same
+support classes and the same scope rule.

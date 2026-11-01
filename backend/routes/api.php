@@ -61,5 +61,6 @@ Route::prefix('v1')->group(function (): void {
 
         // Read-only reports.
         Route::get('reports/weekly', [ReportController::class, 'weekly']);
+        Route::get('reports/monthly', [ReportController::class, 'monthly']);
     });
 });

@@ -6,8 +6,11 @@ use App\Domain\Evaluation\Enums\WeekStartDay;
 use App\Domain\Evaluation\Services\WeekPeriodResolver;
 use App\Domain\Evaluation\ValueObjects\WeekPeriod;
 use App\Domain\Reports\DTOs\WeeklyReport;
+use App\Domain\Reports\Queries\MonthlyReportQuery;
 use App\Domain\Reports\Queries\WeeklyReportQuery;
+use App\Domain\Reports\ValueObjects\MonthPeriod;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\MonthlyReportRequest;
 use App\Http\Requests\Api\V1\WeeklyReportRequest;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
@@ -41,6 +44,43 @@ class ReportController extends Controller
         );
 
         return response()->json(['data' => $report->toArray()]);
+    }
+
+    public function monthly(
+        MonthlyReportRequest $request,
+        MonthlyReportQuery $query,
+    ): JsonResponse {
+        $actor = $request->user();
+        Gate::authorize('viewAny', WeeklyReport::class);
+
+        $center = $actor->center;
+        $month = $this->resolveMonth((string) $request->input('month'), $center->timezone);
+
+        $report = $query->execute(
+            actor: $actor,
+            center: $center,
+            month: $month,
+            groupId: $request->filled('group_id') ? (int) $request->input('group_id') : null,
+            studentId: $request->filled('student_id') ? (int) $request->input('student_id') : null,
+        );
+
+        return response()->json(['data' => $report->toArray()]);
+    }
+
+    /**
+     * A calendar month in the center's timezone. It never depends on
+     * `weekly_evaluation_start_day`: a month is not an evaluation week.
+     */
+    private function resolveMonth(string $month, string $timezone): MonthPeriod
+    {
+        $start = CarbonImmutable::createFromFormat('Y-m', $month, $timezone)
+            ->startOfMonth();
+
+        return new MonthPeriod(
+            key: $start->format('Y-m'),
+            start: $start->toDateString(),
+            end: $start->endOfMonth()->toDateString(),
+        );
     }
 
     private function resolvePeriod(

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tahfeez/core/network/api_client.dart';
 import 'package:tahfeez/features/reports/data/reports_repository.dart';
+import 'package:tahfeez/features/reports/domain/monthly_report.dart';
 import 'package:tahfeez/features/reports/domain/weekly_report.dart';
 
 import '../../../helpers/fake_http_adapter.dart';
@@ -67,5 +68,55 @@ void main() {
     });
 
     await repository.weekly(weekKey: '2026-10-26', groupId: 4, studentId: 7);
+  });
+
+  test('sends the month and reads the calendar period', () async {
+    api.dio.httpClientAdapter = FakeHttpAdapter((RequestOptions options) async {
+      expect(options.path, '/reports/monthly');
+      expect(options.method, 'GET');
+      expect(options.queryParameters['month'], '2026-10');
+      expect(options.queryParameters.containsKey('group_id'), isFalse);
+
+      return FakeHttpAdapter.json(<String, dynamic>{
+        'data': <String, dynamic>{
+          'month': <String, dynamic>{
+            'month_key': '2026-10',
+            'start_date': '2026-10-01',
+            'end_date': '2026-10-31',
+          },
+          'students': <dynamic>[],
+          'totals': <String, dynamic>{'students': 0},
+        },
+      });
+    });
+
+    final MonthlyReport report = await repository.monthly(month: '2026-10');
+
+    expect(report.monthKey, '2026-10');
+    expect(report.startDate, '2026-10-01');
+    expect(report.endDate, '2026-10-31');
+    expect(report.students, isEmpty);
+  });
+
+  test('forwards the monthly filters', () async {
+    api.dio.httpClientAdapter = FakeHttpAdapter((RequestOptions options) async {
+      expect(options.queryParameters['month'], '2026-10');
+      expect(options.queryParameters['group_id'], 4);
+      expect(options.queryParameters['student_id'], 7);
+
+      return FakeHttpAdapter.json(<String, dynamic>{
+        'data': <String, dynamic>{
+          'month': <String, dynamic>{
+            'month_key': '2026-10',
+            'start_date': '2026-10-01',
+            'end_date': '2026-10-31',
+          },
+          'students': <dynamic>[],
+          'totals': <String, dynamic>{'students': 0},
+        },
+      });
+    });
+
+    await repository.monthly(month: '2026-10', groupId: 4, studentId: 7);
   });
 }
