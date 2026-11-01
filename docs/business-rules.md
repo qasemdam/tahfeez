@@ -137,6 +137,41 @@ Conventions:
 | BR-EVL-17 | One weekly evaluation per `(center, student, week)`. A repeated create — same `client_uuid`, or the same student/week — returns the **stored** row with `200`, never a second row and never a recomputation. |
 | BR-EVL-18 | Only the `computed → approved` transition is mutable. Computed values and both snapshots are immutable after creation; the revision flow of BR-EVL-10 is deferred (OD-038). |
 
+### 9.1 Clarifications (no new rules)
+
+These restate rules above; they were written down because the Phase 1 code is
+now the thing being reviewed against them.
+
+**Achievement is uncapped and is never normalised.** `achievement_pct =
+actual_pages / required_pages × 100` (BR-EVL-02). Reference values that must
+hold (BR-EVL-03):
+
+```text
+0.5 page of 1  →  50%       1 page   of 1  →  100%
+1.5 pages of 1 → 150%       2 pages  of 1  →  200%       3 of 1 → 300%
+```
+
+A metric that compares a student with the highest student in the group — if one
+is ever added for rankings — is a **separate, relative** figure. It never
+replaces `achievement_pct`, and the top student is never redefined as 100% of
+the requirement (BR-EVL-04).
+
+**Two measures, never one.** `achievement_pct` (uncapped, volume against the
+requirement) and `weighted_score` (0–100, rule-set aggregation) are stored and
+displayed separately and are never averaged or substituted (BR-EVL-15). A
+number shown to a parent must say which of the two it is.
+
+**A historical week is frozen.** A weekly evaluation stores the rules, the
+inputs and the result it used (BR-EVL-08). Changing the evaluation profile, the
+rule set or the centre's start day afterwards does not recompute it, and reading
+it never consults current configuration (BR-EVL-09, BR-EVL-16, OD-038).
+
+**Memorization ≠ Review ≠ Recitation.** Three separate record types with three
+separate tables, three separate permission sets and three separate figures in
+every report (OD-034, OD-035, OD-036). New memorization is never folded into
+review, review is never folded into memorization, and recitation carries no page
+amount at all. No report may present their sum as one measure.
+
 ## 10. Reports
 
 | ID | Rule |

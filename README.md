@@ -8,15 +8,58 @@ A multi-tenant platform for managing students, teachers, memorization, review, r
 
 ## Status
 
-**Phase 0 — Architecture & Project Foundation: complete, awaiting review.**
-No application code exists yet. See [`docs/README.md`](docs/README.md) for the review package.
+**Phase 1 — vertical slices: delivered.** The API covers the recording path and
+the read-only reporting path end to end. The Flutter client implements the
+recording flows as screens; for the reports and the dashboard it has the models
+and repositories only — no report or dashboard screens exist yet. Phase 2
+(production Quran dataset) stays **blocked on OD-029**; the application runs
+against a fixture provider.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Architecture, data model, API, sync, security, testing, roadmap | ✅ delivered |
-| 1 | Project foundation (Laravel + Flutter skeletons, auth, CI) | ⏸ blocked on environment |
-| 2 | Quran dataset & page measurement | ⚠ verified — artifact is 1441H, not the canonical 1405H; no official 1405H dataset published (OD-029) |
-| 3–10 | Students → Records → Attendance → Evaluation → Reports → Sync → Release | planned |
+| 1 | Vertical slices — auth → dashboard (see below) | ✅ delivered |
+| 2 | Quran dataset & page measurement | ⛔ import blocked on OD-029; fixture provider in use |
+| 3–10 | Offline-first, sync, exports, hardening, release | not started |
+
+### Implemented
+
+- Authentication (email + password, device-scoped bearer token)
+- Students
+- Groups + teacher assignment history
+- Attendance
+- Memorization
+- Review
+- Recitation
+- Evaluation Engine (pure, deterministic, versioned rule sets)
+- Weekly Evaluation (historical snapshots, approval)
+- Weekly Report
+- Monthly Report
+- Dashboard Foundation
+
+### Not implemented yet
+
+- Offline-first (local database + outbox)
+- Sync Engine
+- Backup / Restore
+- PDF Export · Excel Export · Print
+- Formal security review · formal performance review
+- Production Quran 1405H master dataset — the source and its licensing are
+  still unresolved (**OD-005**, **OD-029**). This is a known gap of the data
+  layer, not of the MVP flow: the app measures through `QuranDataProvider`,
+  which is backed by a fixture in development and tests.
+
+Current state, measured on this tree: **43 API routes**, **324 tests /
+1203 assertions**, `pint --test` clean. `flutter analyze` / `flutter test` have
+not been run here because the Flutter SDK is not installed in this environment,
+so the mobile code is reviewed but not verified by a compiler in CI.
+
+### Where the detail lives
+
+- [`docs/roadmap.md`](docs/roadmap.md) §0.2 — current state, slice by slice.
+- [`docs/open-decisions.md`](docs/open-decisions.md) — what is decided and what is not.
+- [`docs/api.md`](docs/api.md) — the endpoint surface as implemented.
+- [`docs/business-rules.md`](docs/business-rules.md) — every enforced rule.
 
 ---
 
@@ -52,7 +95,8 @@ tahfeez/
 └── .gitignore
 ```
 
-Directories are created in Phase 1; Phase 0 ships documentation only.
+Directories exist and carry the Phase 1 code; the Phase 0 documents remain the
+specification they were written against.
 
 ---
 
@@ -99,7 +143,35 @@ A feature is done only after: code → tests → review → PR → merge → doc
 
 ## Getting started
 
-Not available yet — Phase 1 sets up the toolchain and `make` targets. Prerequisites are listed in [docs/roadmap.md](docs/roadmap.md) §0.
+### Backend (Laravel 12 / PHP 8.2)
+
+```bash
+cd backend
+composer install
+cp .env.example .env          # if .env is absent
+php artisan key:generate
+php artisan migrate
+php artisan serve             # http://127.0.0.1:8000
+php artisan test              # 324 tests
+vendor/bin/pint --test
+```
+
+The test suite runs on SQLite in memory; the production target is PostgreSQL 16.
+The API is served under `/api/v1` and authenticated with a bearer token issued
+by `POST /api/v1/auth/login`.
+
+### Mobile (Flutter)
+
+Requires a Flutter SDK and the Android toolchain — neither is installed in the
+environment this repository was built in.
+
+```bash
+cd mobile
+flutter pub get
+flutter run
+```
+
+The API base URL lives in `mobile/lib/core/config/app_config.dart`.
 
 ---
 

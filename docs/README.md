@@ -1,8 +1,19 @@
 # Tahfeez — Documentation Index
 
-**Phase 0 — Architecture & Project Foundation** · Status: *review round 1 applied (2026-10-28), awaiting sign-off* · 2026-10-28
+**Specification (Phase 0) + implementation record (Phase 1)** · updated 2026-11-01
 
-No application code has been written. This is intentional: the master instruction (§28) requires Phase 0 to end with a review gate, and §22 forbids inventing undefined business rules.
+These documents were written as the Phase 0 specification, before any code
+existed. They are still the reference for *what the system must do*. What
+changed since is that **Phase 1 is delivered**: thirteen vertical slices now
+implement the recording and reporting path, and each slice has its own
+`phase-1-*.md` note describing what was actually built.
+
+Where a document states a rule the code does not follow, the divergence is
+recorded in [`open-decisions.md`](open-decisions.md) rather than silently
+"fixed" in either direction — see OD-043 for the current example.
+
+For the state of the project rather than the specification, read
+[`roadmap.md`](roadmap.md) §0.2.
 
 ---
 
@@ -27,9 +38,14 @@ No application code has been written. This is intentional: the master instructio
 | 15 | [`permissions.md`](permissions.md) | Permission catalogue, default matrix, scope rules |
 | 16 | [`security.md`](security.md) | Threat model, controls, privacy/retention |
 | 17 | [`testing.md`](testing.md) | Test strategy, CI gates, Definition of Done |
-| 18 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, environment gaps |
-| 19 | [`open-decisions.md`](open-decisions.md) | **29 decisions — 5 resolved, 1 partial, 23 open** |
+| 18 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, **§0.2 current state** |
+| 19 | [`open-decisions.md`](open-decisions.md) | **43 decisions — 15 resolved, 1 partial, 27 open** |
 | 20 | [`decisions/`](decisions/) | 9 ADRs for the non-obvious choices |
+
+Implementation notes for the delivered slices:
+[`phase-1-foundation.md`](phase-1-foundation.md) · [`phase-1-groups.md`](phase-1-groups.md) ·
+[`phase-1-attendance.md`](phase-1-attendance.md) · [`phase-1-memorization.md`](phase-1-memorization.md) ·
+[`phase-1-review.md`](phase-1-review.md) · [`phase-1-recitation.md`](phase-1-recitation.md)
 
 ---
 

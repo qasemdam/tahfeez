@@ -54,6 +54,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-040 | Monthly report: calendar month and requirement coverage | **Resolved 2026-11-01** (Phase 1) | — |
 | OD-041 | Monthly achievement when evaluation coverage is partial | Open — non-blocking | — |
 | OD-042 | Dashboard student count: membership-scoped or centre-wide | Open — non-blocking | — |
+| OD-043 | `inactive` students in reports: BR-STU-05 vs the implemented scope | **Open** — needs a decision | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -1034,3 +1035,84 @@ scope tests.
 
 **Blocks:** nothing.
 
+
+---
+
+## OD-043 — `inactive` students in reports: BR-STU-05 vs the implemented scope
+
+**Found during the documentation hardening pass (2026-11-01). No code was
+changed: this is a rules/implementation conflict that needs a decision, not a
+bug fix to apply silently.**
+
+### The two concepts
+
+| Concept | Where it lives | Meaning |
+|---|---|---|
+| **Membership active** | `group_memberships.left_at IS NULL` | the student is currently in a group |
+| **Student status** | `students.status` = `active` \| `inactive` | the student is enrolled and attending |
+
+They are independent. A student can be `inactive` and still hold an active
+membership — nothing clears `left_at` when the status changes, and nothing
+prevents a status change for a student in a group.
+
+### Current behaviour (implemented)
+
+- `App\Domain\Reports\Support\StudentScope` filters by **active membership
+  only**. It never looks at `students.status`.
+- Therefore the weekly report, the monthly report and the dashboard all
+  **include students whose status is `inactive`**: they appear as rows, and
+  their records are counted in the aggregates.
+- `dashboard.students.total` counts them; `dashboard.students.active` excludes
+  them. That split is pinned by the test
+  `inactive students count in the total but not in the active figure`.
+- Writing is already blocked for them: memorization, review, recitation,
+  attendance and weekly evaluation all reject an inactive student with 422
+  (`Student::isActive()`), so an inactive student accumulates no new records —
+  only their existing ones are reported.
+
+### The rule they conflict with
+
+> **BR-STU-05** — Setting a student to `inactive` MUST NOT delete records,
+> **MUST exclude the student from default reports and rankings**, and MUST NOT
+> affect historical weekly evaluations.
+
+The third clause is honoured (stored weekly evaluations are untouched). The
+second is **not**: an inactive student is still listed in the default weekly and
+monthly reports and still counted in the dashboard totals.
+
+### Impact
+
+- A centre that marks a student inactive to "remove them from the numbers" will
+  not see that happen: the student keeps appearing, and their old records keep
+  contributing to centre-level totals.
+- Rankings do not exist yet, so the ranking half of the rule is untested.
+- Historical correctness is unaffected: no stored evaluation changes.
+
+### Options
+
+1. **Filter by status in the scope** — add `students.status = active` to
+   `StudentScope::query()`. One line, and the reports match BR-STU-05
+   immediately. Consequence: an inactive student disappears from the weekly and
+   monthly reports and from the dashboard total, but a *stored weekly
+   evaluation* for that student is still readable by id (its own endpoint does
+   not go through `StudentScope`), which keeps the third clause of BR-STU-05
+   intact.
+2. **Amend BR-STU-05** — declare that "default reports" means reports filtered
+   by status explicitly, and that the unfiltered report lists every student with
+   an active membership. This preserves the current behaviour but makes the rule
+   match it.
+3. **Add an explicit filter** — keep the scope as-is and expose
+   `?status=active|inactive|all` on the reports, with `all` as the default. This
+   is the most flexible and the most work; it also leaves the default
+   non-compliant until the client passes the filter.
+
+**Recommendation.** Option 1, plus an explicit `include_inactive=1` escape hatch
+later if a centre needs the full roster. It is the smallest change that makes
+the code obey the rule that is already written, and it does not touch stored
+data. It is **not applied here** because it changes report contents — the kind
+of decision the project records rather than assumes.
+
+**Status.** Open — needs a decision before reports are considered final.
+
+**Blocks:** nothing technically; the reports work today. It blocks *sign-off* on
+report correctness.
