@@ -80,6 +80,11 @@ final class WeeklyReportQuery
         $evaluations = $this->evaluationsByStudent($center, $studentIds, $period);
         $profileRequired = $this->requiredPagesByStudent($center, $studentIds, $period);
 
+        // A stored evaluation froze the group and teacher that graded the week.
+        // Those may be a group the student has since left, so they are resolved
+        // separately instead of being replaced by the current membership.
+        $groups = $this->groupsForRows($memberships, $evaluations);
+
         $rows = $memberships->map(function (GroupMembership $membership) use (
             $attendance,
             $memorization,
@@ -87,9 +92,14 @@ final class WeeklyReportQuery
             $recitation,
             $evaluations,
             $profileRequired,
+            $groups,
         ): StudentWeeklyRow {
             $id = (int) $membership->student_id;
             $evaluation = $evaluations->get($id);
+
+            $group = $evaluation !== null
+                ? ($groups->get((int) $evaluation->group_id) ?? $membership->group)
+                : $membership->group;
 
             $pages = $memorization[$id] ?? ['pages' => '0.0000', 'sessions' => 0];
             $required = $evaluation !== null
@@ -99,10 +109,10 @@ final class WeeklyReportQuery
             return new StudentWeeklyRow(
                 studentId: $id,
                 studentName: (string) ($membership->student?->full_name ?? ''),
-                groupId: $membership->group_id,
-                groupName: (string) ($membership->group?->name ?? ''),
-                teacherId: $membership->group?->teacher_id,
-                teacherName: (string) ($membership->group?->teacher?->name ?? ''),
+                groupId: $group === null ? null : (int) $group->id,
+                groupName: (string) ($group?->name ?? ''),
+                teacherId: $group?->teacher_id,
+                teacherName: (string) ($group?->teacher?->name ?? ''),
                 attendance: $attendance[$id] ?? [
                     'present' => 0,
                     'late' => 0,
@@ -297,6 +307,45 @@ final class WeeklyReportQuery
         }
 
         return $result;
+    }
+
+    /**
+     * The groups a row can point at: the current memberships plus any group an
+     * evaluation froze. A group the student has since left is still readable
+     * (soft-deleted groups included), because it is part of the history.
+     *
+     * @param  Collection<int, GroupMembership>  $memberships
+     * @param  Collection<int, WeeklyEvaluation>  $evaluations
+     * @return Collection<int, Group>
+     */
+    private function groupsForRows(Collection $memberships, Collection $evaluations): Collection
+    {
+        $groups = $memberships
+            ->map(static fn (GroupMembership $membership): ?Group => $membership->group)
+            ->filter()
+            ->keyBy(static fn (Group $group): int => (int) $group->id);
+
+        $missing = $evaluations
+            ->pluck('group_id')
+            ->filter()
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->reject(static fn (int $id): bool => $groups->has($id));
+
+        if ($missing->isEmpty()) {
+            return $groups;
+        }
+
+        $extra = Group::withTrashed()
+            ->with(['teacher' => static fn ($query) => $query->withTrashed()])
+            ->whereIn('id', $missing->all())
+            ->get();
+
+        foreach ($extra as $group) {
+            $groups->put((int) $group->id, $group);
+        }
+
+        return $groups;
     }
 
     /**

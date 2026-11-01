@@ -877,3 +877,23 @@ reported with different boundaries. Separately, the report has to show a
 **Blocks:** nothing. Monthly/student/attendance reports can reuse the same query
 shape and the same scope rule.
 
+
+### OD-039 — review round (2026-11-01)
+
+Three contract fixes after a deep review of the weekly report:
+
+- **`start_day` describes the returned boundary.** With `week_start_date` the
+  day is derived from the date (`WeekStartDay::fromIsoWeekday`), not from the
+  center's current setting. Reporting "monday" next to a Saturday–Friday
+  boundary was simply wrong.
+- **`week_key` and `week_start_date` are mutually exclusive.** Sending both is
+  `422`; the earlier silent precedence of `week_start_date` was an ambiguity the
+  contract should not carry.
+- **`group` / `teacher` follow the evaluation when one exists.** The stored
+  evaluation froze the group and teacher that graded the week; showing the
+  student's *current* group next to a historical evaluation rewrote history.
+  Without an evaluation the row still shows the current membership, which is
+  the documented row-set rule. The extra lookup is one `whereIn` for the
+  historical group ids and only runs when an evaluation points outside the
+  already-loaded groups.
+

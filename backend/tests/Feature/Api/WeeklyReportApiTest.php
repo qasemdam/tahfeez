@@ -459,6 +459,7 @@ class WeeklyReportApiTest extends TestCase
     {
         $s = $this->scenario();
         $this->memorization($s, '2026-10-25', '1.0000');
+        $this->evaluationFor($s, $s['student']);
 
         DB::enableQueryLog();
         $this->withHeaders($this->auth($s['manager']))
@@ -470,6 +471,7 @@ class WeeklyReportApiTest extends TestCase
             $student = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
             app(AddStudentToGroup::class)->execute($s['group'], $s['manager'], $student->id);
             $this->memorization($s, '2026-10-25', '1.0000', $student);
+            $this->evaluationFor($s, $student);
         }
 
         DB::flushQueryLog();
@@ -483,5 +485,183 @@ class WeeklyReportApiTest extends TestCase
         DB::disableQueryLog();
 
         $this->assertSame($baseline, $after, 'The report must not issue one query per student.');
+    }
+
+    private function evaluationFor(array $s, Student $student): WeeklyEvaluation
+    {
+        return WeeklyEvaluation::factory()->for($s['center'])->create([
+            'student_id' => $student->id,
+            'group_id' => $s['group']->id,
+            'teacher_id' => $s['teacher']->id,
+            'week_key' => '2026-10-24',
+            'week_start_date' => '2026-10-24',
+            'week_end_date' => '2026-10-30',
+        ]);
+    }
+
+    public function test_a_historical_evaluation_keeps_its_own_group_and_teacher(): void
+    {
+        $s = $this->scenario();
+        $this->profileVersion($s, $this->ruleSet([$this->criterion('memorization_pages', '100')]));
+        $this->memorization($s, '2026-10-25', '1.0000');
+
+        $created = $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $s['student']->id,
+            'week_date' => '2026-10-26',
+        ])->assertCreated();
+
+        // The student moves to another group with another teacher afterwards.
+        $newTeacher = User::factory()->teacher()->for($s['center'])->create();
+        $newGroup = Group::factory()->for($s['center'])->create(['teacher_id' => $newTeacher->id]);
+        app(AddStudentToGroup::class)->execute($newGroup, $s['manager'], $s['student']->id);
+
+        // The week was graded inside the old group; the report must not rewrite
+        // that context with the student's current group.
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26')
+            ->assertOk()
+            ->assertJsonPath('data.students.0.group.id', $s['group']->id)
+            ->assertJsonPath('data.students.0.group.name', $s['group']->name)
+            ->assertJsonPath('data.students.0.teacher.id', $s['teacher']->id)
+            ->assertJsonPath('data.students.0.evaluation.id', $created->json('data.id'));
+    }
+
+    public function test_the_start_day_matches_a_verbatim_week_start_date(): void
+    {
+        $s = $this->scenario('monday');
+
+        // 2026-10-24 is a Saturday: the response must describe the boundary it
+        // actually returned, not the center's current setting.
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/weekly?week_start_date=2026-10-24')
+            ->assertOk()
+            ->assertJsonPath('data.week.start_date', '2026-10-24')
+            ->assertJsonPath('data.week.start_day', 'saturday');
+    }
+
+    public function test_sending_both_week_parameters_is_rejected(): void
+    {
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26&week_start_date=2026-10-24')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['week_start_date']);
+    }
+
+    public function test_soft_deleted_attendance_review_and_recitation_are_excluded(): void
+    {
+        $s = $this->scenario();
+
+        $this->attendance($s, '2026-10-25', 'present')->delete();
+        $this->review($s, '2026-10-26', '1.0000')->delete();
+        $this->recitation($s, '2026-10-27', 'good', 3)->delete();
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26')
+            ->assertOk()
+            ->assertJsonPath('data.students.0.attendance.present', 0)
+            ->assertJsonPath('data.students.0.review.pages', '0.0000')
+            ->assertJsonPath('data.students.0.review.sessions', 0)
+            ->assertJsonPath('data.students.0.recitation.sessions', 0)
+            ->assertJsonPath('data.students.0.recitation.errors.hifz', 0);
+    }
+
+    public function test_a_student_with_no_activity_still_returns_a_row(): void
+    {
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26')
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 1)
+            ->assertJsonPath('data.students.0.attendance', [
+                'present' => 0,
+                'late' => 0,
+                'excused_absence' => 0,
+                'unexcused_absence' => 0,
+            ])
+            ->assertJsonPath('data.students.0.memorization.actual_pages', '0.0000')
+            ->assertJsonPath('data.students.0.memorization.sessions', 0)
+            ->assertJsonPath('data.students.0.memorization.required_pages', '1.00')
+            ->assertJsonPath('data.students.0.memorization.achievement_percentage', '0.00')
+            ->assertJsonPath('data.students.0.review.pages', '0.0000')
+            ->assertJsonPath('data.students.0.recitation.sessions', 0)
+            ->assertJsonPath('data.students.0.evaluation', null);
+    }
+
+    public function test_achievement_extremes_are_reported_without_normalisation(): void
+    {
+        $s = $this->scenario();
+
+        $amounts = ['0.0000', '0.5000', '2.5000', '3.0000'];
+        $expected = ['0.00', '50.00', '250.00', '300.00'];
+        $students = [];
+
+        foreach ($amounts as $amount) {
+            $student = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
+            app(AddStudentToGroup::class)->execute($s['group'], $s['manager'], $student->id);
+            $this->memorization($s, '2026-10-25', $amount, $student);
+            $students[$student->id] = $amount;
+        }
+
+        $rows = $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26')
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 5)
+            ->json('data.students');
+
+        $byStudent = collect($rows)->keyBy(static fn (array $row): int => $row['student']['id']);
+
+        foreach (array_keys($students) as $index => $studentId) {
+            $this->assertSame(
+                $expected[$index],
+                $byStudent[$studentId]['memorization']['achievement_percentage'],
+            );
+        }
+    }
+
+    public function test_a_teacher_can_read_their_own_group_and_student(): void
+    {
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['teacher']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26&group_id='.$s['group']->id)
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 1)
+            ->assertJsonPath('data.students.0.student.id', $s['student']->id);
+
+        $this->withHeaders($this->auth($s['teacher']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26&student_id='.$s['student']->id)
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 1);
+    }
+
+    public function test_a_teacher_cannot_filter_by_a_student_of_another_center(): void
+    {
+        $s = $this->scenario();
+
+        $otherCenter = Center::factory()->create(['timezone' => 'Asia/Riyadh']);
+        $otherTeacher = User::factory()->teacher()->for($otherCenter)->create();
+        $otherGroup = Group::factory()->for($otherCenter)->create(['teacher_id' => $otherTeacher->id]);
+        $foreignStudent = Student::factory()->for($otherCenter)->create(['enrolled_at' => '2026-01-01']);
+        app(AddStudentToGroup::class)->execute($otherGroup, $otherTeacher, $foreignStudent->id);
+
+        $this->withHeaders($this->auth($s['teacher']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26&student_id='.$foreignStudent->id)
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 0);
+    }
+
+    public function test_a_group_and_student_filter_that_do_not_match_returns_no_rows(): void
+    {
+        $s = $this->scenario();
+
+        $otherGroup = Group::factory()->for($s['center'])->create(['teacher_id' => $s['teacher']->id]);
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/weekly?week_key=2026-10-26&group_id='.$otherGroup->id.'&student_id='.$s['student']->id)
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 0);
     }
 }

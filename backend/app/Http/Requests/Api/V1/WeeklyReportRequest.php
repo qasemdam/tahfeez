@@ -24,7 +24,7 @@ class WeeklyReportRequest extends FormRequest
     {
         return [
             'week_key' => ['nullable', 'date_format:Y-m-d', 'required_without:week_start_date'],
-            'week_start_date' => ['nullable', 'date_format:Y-m-d', 'required_without:week_key'],
+            'week_start_date' => ['nullable', 'date_format:Y-m-d', 'required_without:week_key', 'prohibits:week_key'],
             'group_id' => ['nullable', 'integer', 'min:1'],
             'student_id' => ['nullable', 'integer', 'min:1'],
         ];
@@ -35,6 +35,7 @@ class WeeklyReportRequest extends FormRequest
         return [
             'week_key.required_without' => 'حدد الأسبوع عبر week_key أو week_start_date.',
             'week_start_date.required_without' => 'حدد الأسبوع عبر week_key أو week_start_date.',
+            'week_start_date.prohibits' => 'استخدم week_key أو week_start_date، وليس كليهما.',
         ];
     }
 }

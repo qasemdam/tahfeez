@@ -60,7 +60,9 @@ class ReportController extends Controller
                 start: $start->toDateString(),
                 end: $start->addDays(6)->toDateString(),
                 key: $start->toDateString(),
-                startDay: $startDay,
+                // The boundary is verbatim, so the day it starts on is a fact
+                // about the date — not the center's current setting.
+                startDay: WeekStartDay::fromIsoWeekday((int) $start->format('N')),
             );
         }
 

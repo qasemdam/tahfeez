@@ -200,8 +200,9 @@ Exports are asynchronous, scoped to the requester's permissions, and expire (BR-
 | `group_id` | int | optional; out-of-scope ids simply return no rows |
 | `student_id` | int | optional |
 
-Exactly one of `week_key` / `week_start_date` is required; neither present is
-`422` with `errors.week_key`.
+Exactly one of `week_key` / `week_start_date` is required: neither is `422`
+with `errors.week_key`, and sending both is `422` with
+`errors.week_start_date` — no silent precedence.
 
 The response is one row per student with an active membership in the actor's
 scope. Scope is structural: a manager sees the center, a teacher sees only their
@@ -250,6 +251,13 @@ own groups, and a cross-center filter yields an empty list.
 
 Notes:
 
+- `week.start_day` always describes the boundary that was returned. With
+  `week_start_date` it is the weekday that date actually falls on, not the
+  center's current setting — a historical week keeps saying what it was.
+- `group` / `teacher` describe the week being reported: when a stored
+  evaluation exists, they are the group and teacher that evaluation froze, even
+  if the student has since moved. Without an evaluation they are the student's
+  current group.
 - `memorization.achievement_percentage` is **uncapped** and computed from the
   week's records; it is never normalised against the top student.
 - `review` is a separate figure, never folded into memorization (BR-EVL-15).
