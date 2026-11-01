@@ -2,6 +2,12 @@
 
 Branch: `feature/phase-1-foundation`
 
+> **Historical note (2026-11-01).** This file records the *first* slice only.
+> Groups, attendance, memorization, review, recitation, the evaluation engine,
+> weekly evaluation and the three report endpoints were delivered in later
+> slices and are listed in [`roadmap.md`](roadmap.md) §0.2. The "out of scope"
+> row below describes this slice, not the current state of the repository.
+
 This slice proves the stack end to end for the smallest useful path:
 **sign in → see the students you are allowed to see → enroll a student and assign a teacher.**
 Nothing from Phase 0 was reopened; the Quran master-data gate (OD-029) stays

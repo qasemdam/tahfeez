@@ -3,6 +3,18 @@
 Status: **Revised per Phase 0 review decisions (2026-10-28)** · Phase 0
 This document is the single source of truth for "how much did the student memorize".
 
+> **Implementation status (2026-11-01).** No production dataset is imported and
+> none may be until the Phase 2 gate opens. Every domain that needs Quran data
+> depends on the single interface
+> `App\Domain\Quran\Contracts\QuranDataProvider`; the binding in use is
+> `App\Infrastructure\Quran\FixtureQuranDataProvider`, which covers a small
+> synthetic range for development and tests and fails loudly (422) outside it.
+> The production source for the Madinah Mushaf **1405H** is **not settled**:
+> the only official artifact obtained encodes 1441H and its licensing is
+> unresolved (OD-005, OD-029). Nothing in the reports or the evaluation engine
+> reads the provider directly, and no page constant (`/15` or otherwise) exists
+> outside the provider.
+
 ---
 
 ## 1. Scope and authority

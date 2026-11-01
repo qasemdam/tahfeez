@@ -1,11 +1,17 @@
 # Tahfeez — Development Roadmap
 
-Status: **Draft for review** · Phase 0
+Status: **Phase 1 delivered · Phase 2 import blocked (OD-029)** · updated 2026-11-01
 Each phase is independently runnable, testable and reviewable (§1). No phase starts before the previous one's exit criteria are met.
 
 ---
 
-## 0. Environment readiness (blocking finding)
+## 0. Environment readiness (historical audit — 2026-10-28)
+
+> **Superseded in part (2026-11-01).** Phase 1 was executed on this machine with
+> the PHP/Laravel/Composer toolchain and **SQLite** for the test suite; PostgreSQL
+> remains the production target. Flutter was never installed here, so the mobile
+> slices were written and reviewed but not compiled locally. The audit is kept
+> as the record of what the environment looked like when the plan was written.
 
 Phase 1 cannot begin until the toolchain exists. Current machine audit:
 
@@ -41,6 +47,48 @@ Note: XAMPP's PHP is built for MySQL. Either enable `pdo_pgsql` there or use the
 **Gate state: CLOSED.** Conditions 2, 3, 4, 6 and 7 are unmet. Phase 2 engineering may proceed against synthetic fixtures and the verified structural findings; **production import may not**.
 
 Re-opening the gate requires: a KFGQPC reply with data and terms (`quran-1405h-sourcing.md`), or an explicit product decision to change the canonical edition (OD-029).
+
+---
+
+## 0.2 — Current state (2026-11-01)
+
+The phases below were written as a plan. What actually exists is a set of
+**vertical slices**, each merged into `main` with its own tests. The phase
+numbering is kept as the plan of record; the table maps it to delivered work.
+
+| Phase | Delivered slice | Evidence |
+|---|---|---|
+| 1 | Authentication, Students, Groups + teacher assignment history | `feature/phase-1-foundation` |
+| 2 | **not delivered** — measurement runs through `QuranDataProvider` backed by a fixture | OD-029 stays Open/Blocked |
+| 3 | Students (list/search/enrol/show), teacher assignment history | `feature/phase-1-foundation` |
+| 4 | Memorization · Review · Recitation — three separate record types | `feature/phase-1-memorization`, `-review`, `-recitation` |
+| 5 | Attendance (day sheet, bulk entry, one row per student/day) | `feature/phase-1-attendance` |
+| 6 | Evaluation Engine + Weekly Evaluation (snapshots, approval) | `feature/phase-1-evaluation-engine`, `-weekly-evaluation` |
+| 7 | Weekly Report · Monthly Report · Dashboard Foundation — **reports only, no exports** | `feature/phase-1-weekly-report`, `-monthly-report`, `-dashboard-foundation` |
+| 8 | **not started** — no outbox, no `change_log`, no sync endpoints | — |
+| 9–10 | **not started** | — |
+
+Measured on the merged tree: **43 API routes**, **324 tests / 1203 assertions**,
+`pint --test` clean. The Flutter client covers the same slices; `flutter analyze`
+and `flutter test` have not been executed because the SDK is absent from the
+build environment.
+
+### Explicitly not implemented
+
+Offline-first · Sync Engine · Backup / Restore · PDF / Excel / Print exports ·
+Formal security review · Formal performance review · Production Quran 1405H
+dataset.
+
+### Phase exit criteria that are *not* yet met
+
+- **Phase 2 exit** — blocked: no canonical 1405H artifact (OD-029).
+- **Phase 4 exit** — "20 records created in airplane mode sync exactly once":
+  offline capture does not exist yet, so this criterion is untested.
+- **Phase 7 exit** — "a parent-ready weekly PDF": exports do not exist.
+- **Phase 8 exit** — the sync harness does not exist.
+
+Everything else in phases 1–7 that concerns *recording and reading the data
+online* is delivered and covered by tests.
 
 ---
 

@@ -1,7 +1,14 @@
 # Tahfeez — Testing Strategy
 
-Status: **Draft for review** · Phase 0
+Status: **Draft for review** · Phase 0 · updated 2026-11-01
 Implements §24. A feature is not done without tests that fail when the rule is removed.
+
+> **Implementation status (2026-11-01).** The suite exists and runs:
+> **324 tests / 1203 assertions** on SQLite in memory (`php artisan test`), with
+> `vendor/bin/pint --test` clean. It is a PHPUnit suite — the Pest naming shown
+> below was the plan, not what shipped. Flutter tests are written but have never
+> been executed: the Flutter SDK is not installed in the build environment, so
+> `flutter analyze` and `flutter test` are unverified.
 
 ---
 
