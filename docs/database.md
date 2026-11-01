@@ -391,11 +391,16 @@ wins, and a version effective after the week start is rejected.
 | deleted_at | timestamptz null | soft delete |
 
 Constraints:
-- `unique (center_id, student_id, week_key)` — one row per student-week
-- `unique (center_id, client_uuid)`
+- `unique (center_id, student_id, week_key) WHERE deleted_at IS NULL` — one **live** row per student-week
+- `unique (center_id, client_uuid) WHERE deleted_at IS NULL`
 - `index (center_id, week_start_date)` · `index (center_id, group_id, week_start_date)` · `index (center_id, student_id, week_start_date)`
 - `check (required_pages > 0)` · `check (actual_pages >= 0)` · `check (achievement_percentage >= 0)`
 - `check (weighted_score is null or 0 <= weighted_score <= 100)` · `check (status in ('computed','approved'))`
+
+The uniqueness indexes are **partial** on PostgreSQL and SQLite: a soft-deleted
+evaluation no longer blocks its week, so a deleted week can be recomputed while
+the deleted row stays retrievable. MySQL has no partial indexes and falls back
+to the plain unique, where a deleted week cannot be recreated.
 
 **Why snapshot columns instead of joins:** an approved grade must remain explainable a year later even if the template was archived, a criterion renamed, or the student's profile changed. The row carries its own explanation. The same reasoning applies to the period: `week_start_date`, `week_end_date` and `weekly_evaluation_start_day` are copied onto the row, so a later change to the center's `weekly_evaluation_start_day` cannot retroactively move a student's week.
 

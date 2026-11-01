@@ -419,15 +419,44 @@ no FK. This is recorded as OD-038.
 
 ### 11.5 Immutability and duplicates
 
-- Unique `(center_id, student_id, week_key)` — one row per student-week.
-- Unique `(center_id, client_uuid)` for retries.
+- Unique `(center_id, student_id, week_key)` — one **live** row per
+  student-week.
+- Unique `(center_id, client_uuid)` — also live rows only.
+- Both indexes are **partial** (`WHERE deleted_at IS NULL`) on PostgreSQL and
+  SQLite. A soft-deleted week is removed, not a tombstone: the same week can be
+  computed again, and the deleted row stays retrievable for audit. With a plain
+  unique index the second insert would violate the constraint and surface as a
+  500 — the partial predicate is what makes "delete and recompute" work. MySQL
+  has no partial indexes, so the migration falls back to the plain unique there
+  and a deleted week cannot be recreated (a known, documented limitation).
 - A duplicate create returns the stored row with **200** instead of 201. It is
   never a recomputation.
+- A `client_uuid` that already belongs to a **different student** is rejected
+  with 422 rather than returning that student's row — a retry must never leak a
+  record across the actor's scope.
 - `PATCH` accepts exactly one transition, `status: approved`. Computed values
-  and both snapshots are immutable. The revision flow of BR-EVL-10 is deferred
-  (OD-038): a correction today means deleting and recomputing a draft week.
+  and both snapshots are immutable; the request validates only `status`, so a
+  body carrying `achievement_percentage`, `rules_snapshot` or a boundary date is
+  ignored. The revision flow of BR-EVL-10 is deferred (OD-038): a correction
+  today means deleting and recomputing a draft week.
 
-### 11.6 Flutter
+### 11.6 Required pages fallback
+
+`CreateWeeklyEvaluation` resolves `required_pages` once:
+
+```php
+$requiredPages = $profileVersion?->required_pages ?? '1.00';
+```
+
+This is the single fallback in the codebase, and it exists because a student may
+have no profile version yet. It is the documented baseline of BR-EVL-01, not a
+hidden constant: when a profile version exists its `required_pages` always wins,
+and the resolved value is copied into `rules_snapshot` so the historical row
+explains itself. Swapping the source later (a center-level default, or a
+template-derived requirement) means changing this one line plus the profile
+resolver — the weekly row, the snapshot and the API do not change shape.
+
+### 11.7 Flutter
 
 `/students/:id/weekly-evaluation` shows the stored weeks of one student and
 computes a new one. The client sends `week_date` (any day in the week) and

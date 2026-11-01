@@ -68,6 +68,14 @@ class CreateWeeklyEvaluation
         }
 
         $group = $membership->group;
+
+        // A teacher may only compute for a student in one of their own groups —
+        // the same structural scope as memorization/review/recitation. An
+        // out-of-scope student is 404, never 403 (BR-TEN-02 / BR-AUT-02).
+        if ($actor->isTeacher() && $group->teacher_id !== $actor->id) {
+            abort(404);
+        }
+
         $center = $actor->center;
 
         $referenceDate = (string) ($data['week_date'] ?? now($center->timezone)->toDateString());
@@ -86,6 +94,14 @@ class CreateWeeklyEvaluation
                 ->first();
 
             if ($existing !== null) {
+                // The uuid identifies one operation. Handing back another
+                // student's row would leak it across the actor's scope.
+                if ($existing->student_id !== $student->id) {
+                    throw ValidationException::withMessages([
+                        'client_uuid' => ['client_uuid مستخدم لسجل طالب آخر.'],
+                    ]);
+                }
+
                 return [$existing, false];
             }
         }

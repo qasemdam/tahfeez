@@ -642,4 +642,183 @@ class WeeklyEvaluationApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.week_key', '2026-10-24');
     }
+
+    public function test_a_soft_deleted_evaluation_does_not_block_recreating_the_week(): void
+    {
+        $s = $this->scenario();
+        $this->memorization($s, '2026-10-26', '1.0000');
+
+        $first = $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $s['student']->id,
+            'week_date' => '2026-10-26',
+        ])->assertCreated();
+
+        WeeklyEvaluation::query()->whereKey($first->json('data.id'))->firstOrFail()->delete();
+
+        $this->assertSoftDeleted('weekly_evaluations', ['id' => $first->json('data.id')]);
+
+        $second = $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $s['student']->id,
+            'week_date' => '2026-10-26',
+        ])->assertCreated();
+
+        $this->assertNotSame($first->json('data.id'), $second->json('data.id'));
+        $this->assertSame(2, WeeklyEvaluation::withTrashed()->count());
+        $this->assertSame(1, WeeklyEvaluation::query()->count());
+    }
+
+    public function test_a_client_uuid_reused_for_another_student_is_rejected(): void
+    {
+        $s = $this->scenario();
+        $this->memorization($s, '2026-10-26', '1.0000');
+
+        $otherStudent = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
+        app(AddStudentToGroup::class)->execute($s['group'], $s['manager'], $otherStudent->id);
+
+        $uuid = '9d1f0b3e-2f6a-4a4f-9c1e-1a2b3c4d5e6f';
+
+        $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $s['student']->id,
+            'week_date' => '2026-10-26',
+            'client_uuid' => $uuid,
+        ])->assertCreated();
+
+        // The retry must never hand another student's evaluation back.
+        $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $otherStudent->id,
+            'week_date' => '2026-10-26',
+            'client_uuid' => $uuid,
+        ])->assertStatus(422);
+
+        $this->assertSame(1, WeeklyEvaluation::query()->count());
+    }
+
+    public function test_a_teacher_with_compute_permission_cannot_create_for_another_teachers_student(): void
+    {
+        $s = $this->scenario();
+
+        $otherTeacher = User::factory()->teacher()->for($s['center'])->create();
+        $otherGroup = Group::factory()->for($s['center'])->create(['teacher_id' => $otherTeacher->id]);
+        $otherStudent = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
+        app(AddStudentToGroup::class)->execute($otherGroup, $s['manager'], $otherStudent->id);
+
+        // The manager granted the permission; scope must still apply.
+        $s['teacher']->update(['permissions' => ['evaluation.compute']]);
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $otherStudent->id,
+            'week_date' => '2026-10-26',
+        ])->assertNotFound();
+
+        $this->assertSame(0, WeeklyEvaluation::query()->count());
+    }
+
+    public function test_a_teacher_with_approve_permission_cannot_approve_outside_their_group(): void
+    {
+        $s = $this->scenario();
+
+        $otherTeacher = User::factory()->teacher()->for($s['center'])->create();
+        $otherGroup = Group::factory()->for($s['center'])->create(['teacher_id' => $otherTeacher->id]);
+        $otherStudent = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
+        app(AddStudentToGroup::class)->execute($otherGroup, $s['manager'], $otherStudent->id);
+
+        $evaluation = WeeklyEvaluation::factory()->for($s['center'])->create([
+            'student_id' => $otherStudent->id,
+            'group_id' => $otherGroup->id,
+            'teacher_id' => $otherTeacher->id,
+        ]);
+
+        $s['teacher']->update(['permissions' => ['evaluation.approve']]);
+
+        $this->withHeaders($this->auth($s['teacher']))
+            ->patchJson('/api/v1/weekly-evaluations/'.$evaluation->id, ['status' => 'approved'])
+            ->assertNotFound();
+
+        $this->assertSame('computed', $evaluation->fresh()?->status);
+    }
+
+    public function test_patch_cannot_change_the_snapshot_or_the_result(): void
+    {
+        $s = $this->scenario();
+        $this->memorization($s, '2026-10-26', '1.0000');
+
+        $created = $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $s['student']->id,
+            'week_date' => '2026-10-26',
+        ])->assertCreated();
+
+        $id = $created->json('data.id');
+        $before = WeeklyEvaluation::query()->findOrFail($id);
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->patchJson('/api/v1/weekly-evaluations/'.$id, [
+                'status' => 'approved',
+                'achievement_percentage' => '999.00',
+                'actual_pages' => '99.0000',
+                'required_pages' => '99.00',
+                'week_start_date' => '2020-01-01',
+                'rules_snapshot' => ['tampered' => true],
+                'result_snapshot' => ['tampered' => true],
+            ])->assertOk()
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('data.achievement_percentage', '100.00');
+
+        $after = WeeklyEvaluation::query()->findOrFail($id);
+
+        $this->assertSame($before->achievement_percentage, $after->achievement_percentage);
+        $this->assertSame($before->actual_pages, $after->actual_pages);
+        $this->assertSame($before->required_pages, $after->required_pages);
+        $this->assertSame($before->week_start_date?->toDateString(), $after->week_start_date?->toDateString());
+        $this->assertSame($before->rules_snapshot, $after->rules_snapshot);
+        $this->assertSame($before->result_snapshot, $after->result_snapshot);
+    }
+
+    public function test_the_stored_snapshots_are_not_reinterpreted_by_current_configuration(): void
+    {
+        $s = $this->scenario('saturday');
+        $this->profileVersion($s, $this->ruleSet([
+            $this->criterion('memorization_pages', '100', 'block', ['required_pages' => '1']),
+        ]), '1.00', '2026-01-01', 1);
+        $this->memorization($s, '2026-10-26', '1.5000');
+
+        $created = $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/weekly-evaluations', [
+            'student_id' => $s['student']->id,
+            'week_date' => '2026-10-26',
+        ])->assertCreated();
+
+        $id = $created->json('data.id');
+        $before = WeeklyEvaluation::query()->findOrFail($id);
+
+        // Everything that could reinterpret a historical week, changed after the
+        // fact: the center's start day, a new profile version, new records.
+        $s['center']->update(['weekly_evaluation_start_day' => 'monday']);
+        $this->profileVersion($s, $this->ruleSet([
+            $this->criterion('memorization_pages', '100', 'block', ['required_pages' => '9']),
+        ]), '9.00', '2026-10-01', 2);
+        $this->memorization($s, '2026-10-27', '5.0000');
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/weekly-evaluations/'.$id)
+            ->assertOk()
+            ->assertJsonPath('data.achievement_percentage', '150.00')
+            ->assertJsonPath('data.actual_pages', '1.5000')
+            ->assertJsonPath('data.required_pages', '1.00')
+            ->assertJsonPath('data.week_start_date', '2026-10-24')
+            ->assertJsonPath('data.week_end_date', '2026-10-30')
+            ->assertJsonPath('data.weekly_evaluation_start_day', 'saturday');
+
+        $after = WeeklyEvaluation::query()->findOrFail($id);
+
+        $this->assertSame($before->rules_snapshot, $after->rules_snapshot);
+        $this->assertSame($before->result_snapshot, $after->result_snapshot);
+        $this->assertSame('saturday', $after->rules_snapshot['weekly_evaluation_start_day']);
+        $this->assertSame('2026-10-24', $after->rules_snapshot['week_start_date']);
+        $this->assertSame('1.00', $after->rules_snapshot['required_pages']);
+        $this->assertSame(1, $after->rules_snapshot['profile_version']);
+        $this->assertSame('memorization_pages', $after->rules_snapshot['rule_set']['criteria'][0]['key']);
+        $this->assertSame('100', $after->rules_snapshot['rule_set']['criteria'][0]['weight']);
+        $this->assertSame('block', $after->rules_snapshot['rule_set']['criteria'][0]['missing_data_policy']);
+        $this->assertSame('1.5000', $after->rules_snapshot['inputs']['memorization_pages']);
+        $this->assertSame('150.00', $after->result_snapshot['achievement_percentage']);
+    }
 }

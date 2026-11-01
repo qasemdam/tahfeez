@@ -78,9 +78,11 @@ class _WeeklyEvaluationPageState extends ConsumerState<WeeklyEvaluationPage> {
       ref.invalidate(studentWeeklyEvaluationsProvider(widget.studentId));
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم احتساب تقييم الأسبوع')),
-        );
+        // A duplicate week returns the stored row, so the wording stays
+        // neutral rather than claiming a new computation.
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تم حفظ تقييم الأسبوع')));
       }
     } catch (error) {
       if (mounted) {
@@ -161,6 +163,7 @@ class _WeeklyEvaluationPageState extends ConsumerState<WeeklyEvaluationPage> {
           );
         },
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: <Widget>[
             _buildHeader(theme),

@@ -820,6 +820,16 @@ the slice had to decide what to store now without pre-building Phase 6.
   set, so `weighted_score` is null and only the baseline achievement is
   produced. The row records that no profile version was used.
 
+- **Soft delete removes, it does not tombstone.** The two uniqueness
+  constraints are partial (`WHERE deleted_at IS NULL`), so a deleted week can be
+  recomputed. A plain unique index made the second insert a 500 — the deleted
+  row stayed invisible to the duplicate check but still occupied the index.
+- **A `client_uuid` belongs to one student.** Reusing it for another student is
+  a 422, never "here is that other student's evaluation".
+- **Teacher scope is structural on create too.** A teacher holding
+  `evaluation.compute` may still only compute for students in their own groups;
+  anything else is 404, matching memorization/review/recitation.
+
 **Blocks:** nothing. Phase 6 (templates) can add `template_version_id` FKs and
 a revision chain without rewriting stored rows.
 
