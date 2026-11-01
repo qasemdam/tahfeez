@@ -310,7 +310,7 @@ Detailed contract: `offline-sync.md`.
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `month` | `YYYY-MM` | **required**. A calendar month, always the 1st to the last day. It is never derived from `weekly_evaluation_start_day` and never defaulted to the current month |
+| `month` | `YYYY-MM` | **required**. A calendar month, always the 1st to the last day. It is never derived from `weekly_evaluation_start_day`, never defaulted to the current month, and its boundaries never depend on today's date |
 | `group_id` | int | optional; out-of-scope ids simply return no rows |
 | `student_id` | int | optional |
 

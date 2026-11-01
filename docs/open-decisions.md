@@ -52,6 +52,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-038 | Weekly evaluation: week key, inline rule set, deferred revisions | **Resolved 2026-11-01** (Phase 1) | — |
 | OD-039 | Weekly report period input and requirement source | **Resolved 2026-11-01** (Phase 1) | — |
 | OD-040 | Monthly report: calendar month and requirement coverage | **Resolved 2026-11-01** (Phase 1) | — |
+| OD-041 | Monthly achievement when evaluation coverage is partial | Open — non-blocking | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -940,3 +941,48 @@ with no evaluations would be worse — it reads as "the student did nothing".
 
 **Blocks:** nothing. A future student/attendance report can reuse the same
 support classes and the same scope rule.
+
+---
+
+## OD-041 — Monthly achievement when evaluation coverage is partial
+
+**Question.** The monthly requirement is the sum of the requirements frozen in
+the **stored** weekly evaluations (OD-040). A month can therefore have fewer
+evaluations than weeks. Concretely, for October 2026 (four evaluation weeks):
+
+| | |
+|---|---|
+| stored evaluations | 2 (weeks 1 and 2), `required_pages = 1.00` each |
+| monthly `required_pages` | `2.00` |
+| memorization in the month | `4.0000` |
+| reported `achievement_percentage` | **`200.00`** |
+
+The arithmetic is exactly BR-EVL-02 (`actual / required × 100`, uncapped) and it
+is honest about the data the system has: only two weeks were ever graded, and
+`weekly_evaluations.count = 2` sits in the same row. But a reader who ignores
+the count sees "200%" for a month where half the weeks were never evaluated.
+
+**Options.**
+
+1. **Keep as-is** (current). The requirement covers what was actually graded;
+   coverage is visible via `weekly_evaluations.count`. No invented numbers.
+2. **Suppress the ratio when coverage is partial** — `achievement_percentage`
+   becomes null unless every week of the month has an evaluation. Safe, but
+   hides a real figure and requires defining "every week of the month", which
+   depends on the center's start day and on month boundaries.
+3. **Add an explicit coverage block** — e.g. `weekly_evaluations.expected` (the
+   number of evaluation weeks the month contains) so `count / expected` is
+   readable without arithmetic. Does not change any stored or computed value.
+
+**Recommendation.** Option 1 now, Option 3 when the report UI is built — it adds
+context without inventing semantics. Option 2 is rejected as the default: it
+turns "we do not know" into "no data" for the reader, and the missing weeks are
+a process gap, not a student result.
+
+**Status.** Open, non-blocking. The current behaviour is documented in
+`api.md` §7.2 and pinned by a regression test
+(`a half evaluated month uses only the stored requirements`). Changing it is a
+business decision, not an implementation fix.
+
+**Blocks:** nothing.
+

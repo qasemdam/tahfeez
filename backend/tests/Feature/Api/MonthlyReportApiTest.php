@@ -556,8 +556,7 @@ class MonthlyReportApiTest extends TestCase
     public function test_the_query_count_does_not_grow_with_the_number_of_students(): void
     {
         $s = $this->scenario();
-        $this->memorization($s, '2026-10-05', '1.0000');
-        $this->evaluationFor($s, $s['student'], '2026-10-03');
+        $this->seedMonth($s, $s['student']);
 
         DB::enableQueryLog();
         $this->withHeaders($this->auth($s['manager']))
@@ -568,8 +567,7 @@ class MonthlyReportApiTest extends TestCase
         for ($i = 0; $i < 8; $i++) {
             $student = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
             app(AddStudentToGroup::class)->execute($s['group'], $s['manager'], $student->id);
-            $this->memorization($s, '2026-10-05', '1.0000', $student);
-            $this->evaluationFor($s, $student, '2026-10-03');
+            $this->seedMonth($s, $student);
         }
 
         DB::flushQueryLog();
@@ -577,11 +575,187 @@ class MonthlyReportApiTest extends TestCase
         $this->withHeaders($this->auth($s['manager']))
             ->getJson('/api/v1/reports/monthly?month=2026-10')
             ->assertOk()
-            ->assertJsonPath('data.totals.students', 9);
+            ->assertJsonPath('data.totals.students', 9)
+            ->assertJsonPath('data.students.0.weekly_evaluations.count', 2);
 
         $after = count(DB::getQueryLog());
         DB::disableQueryLog();
 
         $this->assertSame($baseline, $after, 'The report must not issue one query per student.');
+    }
+
+    /**
+     * Two evaluations plus several records of every other type, so the N+1
+     * guard covers every source and not just the empty case.
+     */
+    private function seedMonth(array $s, Student $student): void
+    {
+        $this->evaluationFor($s, $student, '2026-10-03', '1.00');
+        $this->evaluationFor($s, $student, '2026-10-10', '1.00');
+
+        foreach (['2026-10-01', '2026-10-02'] as $date) {
+            Attendance::factory()->for($s['center'])->create([
+                'student_id' => $student->id,
+                'group_id' => $s['group']->id,
+                'teacher_id' => $s['teacher']->id,
+                'attendance_date' => $date,
+                'status' => 'present',
+                'late_minutes' => null,
+            ]);
+        }
+
+        foreach (['0.5000', '1.0000'] as $index => $amount) {
+            $this->memorization($s, '2026-10-0'.($index + 4), $amount, $student);
+        }
+
+        Review::factory()->for($s['center'])->create([
+            'student_id' => $student->id,
+            'group_id' => $s['group']->id,
+            'teacher_id' => $s['teacher']->id,
+            'review_date' => '2026-10-07',
+            'amount_pages' => '0.5000',
+        ]);
+
+        Recitation::factory()->for($s['center'])->create([
+            'student_id' => $student->id,
+            'group_id' => $s['group']->id,
+            'teacher_id' => $s['teacher']->id,
+            'recitation_date' => '2026-10-11',
+            'grade' => 'good',
+            'hifz_errors' => 1,
+            'tajweed_errors' => 0,
+            'reading_errors' => 0,
+        ]);
+    }
+
+    public function test_the_month_does_not_depend_on_the_current_day(): void
+    {
+        $s = $this->scenario();
+
+        // On the 31st a naive `createFromFormat('Y-m')` fills the day with 31 and
+        // overflows November into December.
+        $this->travelTo(CarbonImmutable::parse('2026-12-31 10:00:00', 'Asia/Riyadh'));
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/monthly?month=2026-11')
+            ->assertOk()
+            ->assertJsonPath('data.month.month_key', '2026-11')
+            ->assertJsonPath('data.month.start_date', '2026-11-01')
+            ->assertJsonPath('data.month.end_date', '2026-11-30');
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/monthly?month=2026-02')
+            ->assertOk()
+            ->assertJsonPath('data.month.start_date', '2026-02-01')
+            ->assertJsonPath('data.month.end_date', '2026-02-28');
+
+        $this->travelBack();
+    }
+
+    public function test_a_half_evaluated_month_uses_only_the_stored_requirements(): void
+    {
+        $s = $this->scenario();
+
+        // Four weeks in the month, only two evaluated.
+        $this->evaluationFor($s, $s['student'], '2026-10-03', '1.00');
+        $this->evaluationFor($s, $s['student'], '2026-10-10', '1.00');
+
+        $this->memorization($s, '2026-10-05', '2.0000');
+        $this->memorization($s, '2026-10-12', '2.0000');
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/monthly?month=2026-10')
+            ->assertOk()
+            ->assertJsonPath('data.students.0.memorization.required_pages', '2.00')
+            ->assertJsonPath('data.students.0.memorization.actual_pages', '4.0000')
+            ->assertJsonPath('data.students.0.memorization.achievement_percentage', '200.00')
+            ->assertJsonPath('data.students.0.weekly_evaluations.count', 2);
+    }
+
+    public function test_achievement_reference_values(): void
+    {
+        $s = $this->scenario();
+
+        $cases = [
+            ['required' => '1.00', 'actual' => '0.5000', 'expected' => '50.00'],
+            ['required' => '1.00', 'actual' => '1.0000', 'expected' => '100.00'],
+            ['required' => '1.00', 'actual' => '3.0000', 'expected' => '300.00'],
+            ['required' => '2.00', 'actual' => '4.0000', 'expected' => '200.00'],
+        ];
+
+        foreach ($cases as $case) {
+            $student = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
+            app(AddStudentToGroup::class)->execute($s['group'], $s['manager'], $student->id);
+            $this->evaluationFor($s, $student, '2026-10-03', $case['required']);
+            $this->memorization($s, '2026-10-05', $case['actual'], $student);
+        }
+
+        $rows = $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/monthly?month=2026-10')
+            ->assertOk()
+            ->json('data.students');
+
+        // The first row is the scenario student, who has no records.
+        $achievements = array_map(
+            static fn (array $row): ?string => $row['memorization']['achievement_percentage'],
+            array_slice($rows, 1),
+        );
+
+        $this->assertSame(array_column($cases, 'expected'), $achievements);
+    }
+
+    public function test_a_student_with_many_records_appears_once_with_unduplicated_totals(): void
+    {
+        $s = $this->scenario();
+
+        // Two evaluations, three attendance days, three memorization records,
+        // two reviews and three recitations — every source must count once.
+        $this->evaluationFor($s, $s['student'], '2026-10-03', '1.00');
+        $this->evaluationFor($s, $s['student'], '2026-10-10', '1.00');
+
+        foreach (['2026-10-01', '2026-10-02', '2026-10-03'] as $date) {
+            $this->attendance($s, $date, 'present');
+        }
+
+        foreach (['0.5000', '1.0000', '1.5000'] as $index => $amount) {
+            $this->memorization($s, '2026-10-0'.($index + 4), $amount);
+        }
+
+        $this->review($s, '2026-10-07', '0.2500');
+        $this->review($s, '2026-10-08', '0.7500');
+
+        foreach (['2026-10-11', '2026-10-12', '2026-10-13'] as $date) {
+            $this->recitation($s, $date, 'good', 1);
+        }
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reports/monthly?month=2026-10')
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 1)
+            ->assertJsonPath('data.students.0.attendance.present', 3)
+            ->assertJsonPath('data.students.0.memorization.actual_pages', '3.0000')
+            ->assertJsonPath('data.students.0.memorization.sessions', 3)
+            ->assertJsonPath('data.students.0.memorization.required_pages', '2.00')
+            ->assertJsonPath('data.students.0.review.pages', '1.0000')
+            ->assertJsonPath('data.students.0.review.sessions', 2)
+            ->assertJsonPath('data.students.0.recitation.sessions', 3)
+            ->assertJsonPath('data.students.0.recitation.errors.hifz', 3)
+            ->assertJsonPath('data.students.0.weekly_evaluations.count', 2);
+    }
+
+    public function test_a_teacher_cannot_filter_by_a_student_of_another_center(): void
+    {
+        $s = $this->scenario();
+
+        $otherCenter = Center::factory()->create(['timezone' => 'Asia/Riyadh']);
+        $otherTeacher = User::factory()->teacher()->for($otherCenter)->create();
+        $otherGroup = Group::factory()->for($otherCenter)->create(['teacher_id' => $otherTeacher->id]);
+        $foreignStudent = Student::factory()->for($otherCenter)->create(['enrolled_at' => '2026-01-01']);
+        app(AddStudentToGroup::class)->execute($otherGroup, $otherTeacher, $foreignStudent->id);
+
+        $this->withHeaders($this->auth($s['teacher']))
+            ->getJson('/api/v1/reports/monthly?month=2026-10&student_id='.$foreignStudent->id)
+            ->assertOk()
+            ->assertJsonPath('data.totals.students', 0);
     }
 }

@@ -70,10 +70,14 @@ class ReportController extends Controller
     /**
      * A calendar month in the center's timezone. It never depends on
      * `weekly_evaluation_start_day`: a month is not an evaluation week.
+     *
+     * The `!` in the format resets every field the format does not carry. Without
+     * it PHP fills the day from *today*, and on the 31st `2026-11` would overflow
+     * to December — the report would silently return another month.
      */
     private function resolveMonth(string $month, string $timezone): MonthPeriod
     {
-        $start = CarbonImmutable::createFromFormat('Y-m', $month, $timezone)
+        $start = CarbonImmutable::createFromFormat('!Y-m', $month, $timezone)
             ->startOfMonth();
 
         return new MonthPeriod(
