@@ -6,6 +6,7 @@ use App\Domain\Groups\Models\Group;
 use App\Domain\Groups\Models\GroupMembership;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -18,6 +19,30 @@ use Illuminate\Support\Collection;
 final class StudentScope
 {
     /**
+     * The shared predicate: reports hydrate it, the dashboard only needs ids.
+     */
+    public static function query(
+        User $actor,
+        Center $center,
+        ?int $groupId = null,
+        ?int $studentId = null,
+    ): Builder {
+        $groupIds = Group::query()
+            ->visibleTo($actor)
+            ->where('groups.center_id', $center->id)
+            ->when($groupId !== null, static fn ($query) => $query->whereKey($groupId))
+            ->pluck('id');
+
+        return GroupMembership::query()
+            ->where('center_id', $center->id)
+            ->whereNull('left_at')
+            // An empty scope must yield no rows, never every row.
+            ->whereIn('group_id', $groupIds->all())
+            ->when($studentId !== null, static fn ($query) => $query->where('student_id', $studentId))
+            ->whereHas('student');
+    }
+
+    /**
      * @return Collection<int, GroupMembership>
      */
     public static function memberships(
@@ -26,22 +51,7 @@ final class StudentScope
         ?int $groupId = null,
         ?int $studentId = null,
     ): Collection {
-        $groupIds = Group::query()
-            ->visibleTo($actor)
-            ->where('groups.center_id', $center->id)
-            ->when($groupId !== null, static fn ($query) => $query->whereKey($groupId))
-            ->pluck('id');
-
-        if ($groupIds->isEmpty()) {
-            return collect();
-        }
-
-        return GroupMembership::query()
-            ->where('center_id', $center->id)
-            ->whereNull('left_at')
-            ->whereIn('group_id', $groupIds)
-            ->when($studentId !== null, static fn ($query) => $query->where('student_id', $studentId))
-            ->whereHas('student')
+        return self::query($actor, $center, $groupId, $studentId)
             ->with([
                 'student:id,full_name',
                 'group:id,name,teacher_id',
@@ -52,6 +62,22 @@ final class StudentScope
             ->get()
             // A student with two active memberships appears once, on the first.
             ->unique('student_id')
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, int>
+     */
+    public static function studentIds(
+        User $actor,
+        Center $center,
+        ?int $groupId = null,
+        ?int $studentId = null,
+    ): Collection {
+        return self::query($actor, $center, $groupId, $studentId)
+            ->distinct()
+            ->pluck('student_id')
+            ->map(static fn (mixed $id): int => (int) $id)
             ->values();
     }
 }

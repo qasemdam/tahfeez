@@ -40,4 +40,25 @@ final class AmountTotals
 
         return $result;
     }
+
+    /**
+     * One figure for the whole scope (the dashboard does not need per-student
+     * rows).
+     *
+     * @param  Collection<int, mixed>  $rows  rows exposing `amount_pages`
+     * @return array{pages: string, sessions: int}
+     */
+    public static function total(Collection $rows): array
+    {
+        $sum = BigDecimal::zero();
+
+        foreach ($rows as $row) {
+            $sum = $sum->plus(BigDecimal::of((string) $row->amount_pages));
+        }
+
+        return [
+            'pages' => (string) $sum->toScale(4),
+            'sessions' => $rows->count(),
+        ];
+    }
 }

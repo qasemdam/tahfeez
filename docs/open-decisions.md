@@ -53,6 +53,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-039 | Weekly report period input and requirement source | **Resolved 2026-11-01** (Phase 1) | — |
 | OD-040 | Monthly report: calendar month and requirement coverage | **Resolved 2026-11-01** (Phase 1) | — |
 | OD-041 | Monthly achievement when evaluation coverage is partial | Open — non-blocking | — |
+| OD-042 | Dashboard student count: membership-scoped or centre-wide | Open — non-blocking | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -983,6 +984,53 @@ a process gap, not a student result.
 `api.md` §7.2 and pinned by a regression test
 (`a half evaluated month uses only the stored requirements`). Changing it is a
 business decision, not an implementation fix.
+
+**Blocks:** nothing.
+
+
+---
+
+## OD-042 — Dashboard student count: membership-scoped or centre-wide
+
+**Question.** `dashboard.students.total` can mean two different things:
+
+- **A. Students with an active membership in a visible group** — what the
+  reports already use for their row set.
+- **B. Every student record in the centre** — including students that were
+  registered but never placed in a group.
+
+A centre with 120 students of whom 8 are unassigned would report `120` under B
+and `112` under A. Neither number is wrong; they answer different questions, and
+no business rule defines which one the dashboard should show.
+
+**Current behaviour (implemented).** Option **A**. The dashboard shares
+`StudentScope` with the reports, so every figure on the page is computed over
+exactly the same population: a student is counted when they hold an active
+membership in a group the actor can see. `active` is the subset whose status is
+`active`; a student with status `inactive` still counts in `total`.
+
+**Why A for now.** It keeps the dashboard consistent with the weekly and monthly
+reports — the same student appears in the list and in the KPI. Option B would
+produce a total that no report can reconcile, and for a teacher it would be
+impossible without leaking the centre's size.
+
+**Options.**
+
+1. **Keep A** (current). Consistent with reports; unassigned students are
+   invisible on the dashboard.
+2. **Report both** — `students.total` (membership-scoped) plus a separate
+   `students.unassigned` for the centre. Adds a field and a definition.
+3. **Switch to B for managers only** — the manager sees the centre roster,
+   teachers keep A. Splits the meaning of the same key by role, which is easy to
+   misread.
+
+**Recommendation.** Keep A, and add `unassigned` later if managers report that
+students are going missing from the dashboard. Option 3 is rejected: one key with
+two meanings is a bug waiting to happen.
+
+**Status.** Open, non-blocking. Pinned by
+`inactive students count in the total but not in the active figure` and by the
+scope tests.
 
 **Blocks:** nothing.
 

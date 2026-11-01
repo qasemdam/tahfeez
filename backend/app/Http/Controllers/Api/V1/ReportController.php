@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Domain\Evaluation\Enums\WeekStartDay;
 use App\Domain\Evaluation\Services\WeekPeriodResolver;
 use App\Domain\Evaluation\ValueObjects\WeekPeriod;
+use App\Domain\Reports\DTOs\DashboardSummary;
 use App\Domain\Reports\DTOs\WeeklyReport;
+use App\Domain\Reports\Queries\DashboardQuery;
 use App\Domain\Reports\Queries\MonthlyReportQuery;
 use App\Domain\Reports\Queries\WeeklyReportQuery;
 use App\Domain\Reports\ValueObjects\MonthPeriod;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\DashboardRequest;
 use App\Http\Requests\Api\V1\MonthlyReportRequest;
 use App\Http\Requests\Api\V1\WeeklyReportRequest;
 use Carbon\CarbonImmutable;
@@ -65,6 +68,26 @@ class ReportController extends Controller
         );
 
         return response()->json(['data' => $report->toArray()]);
+    }
+
+    public function dashboard(
+        DashboardRequest $request,
+        DashboardQuery $query,
+    ): JsonResponse {
+        $actor = $request->user();
+        Gate::authorize('viewAny', DashboardSummary::class);
+
+        $center = $actor->center;
+        $month = $this->resolveMonth((string) $request->input('month'), $center->timezone);
+
+        $summary = $query->execute(
+            actor: $actor,
+            center: $center,
+            month: $month,
+            groupId: $request->filled('group_id') ? (int) $request->input('group_id') : null,
+        );
+
+        return response()->json(['data' => $summary->toArray()]);
     }
 
     /**

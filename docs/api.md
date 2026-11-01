@@ -175,7 +175,7 @@ Publishing an invalid template (weights ≠ 100) returns `422` with `errors.weig
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/dashboard` | Center KPIs for a period |
+| GET | `/dashboard` | `?month=YYYY-MM`, plus `group_id` — implemented, see §7.3 |
 | GET | `/reports/weekly` | `?week_key=` or `?week_start_date=`, plus `group_id` / `student_id` — implemented, see §7.1 |
 | GET | `/reports/monthly` | `?month=YYYY-MM`, plus `group_id` / `student_id` — implemented, see §7.2 |
 | GET | `/reports/students/{id}` | Student report |
@@ -368,3 +368,47 @@ Notes:
   grade counts and error totals with no derived score; no attendance rate is
   invented.
 - The report never creates a weekly evaluation and never runs the engine.
+
+### 7.3 Dashboard
+
+`GET /dashboard` · permission `reports.view` · read-only.
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `month` | `YYYY-MM` | **required**. A calendar month, resolved exactly like §7.2. There is no clock-based default |
+| `group_id` | int | optional; an out-of-scope id yields an empty dashboard, not a 403 |
+
+```json
+{
+  "data": {
+    "period": { "month": "2026-10", "start_date": "2026-10-01", "end_date": "2026-10-31" },
+    "students": { "total": 120, "active": 115 },
+    "groups": { "total": 8 },
+    "attendance": { "present": 820, "late": 35, "excused_absence": 42, "unexcused_absence": 18 },
+    "memorization": { "pages": "245.5000", "sessions": 310 },
+    "review": { "pages": "180.2500", "sessions": 270 },
+    "recitation": { "sessions": 190 },
+    "weekly_evaluations": { "count": 420, "approved": 380, "computed": 40 }
+  }
+}
+```
+
+Scope and meaning:
+
+- **Every figure is scoped to the actor's visible groups.** A manager sees the
+  centre; a teacher sees the aggregate of *all* groups they own, never another
+  teacher's. There is no centre-wide figure for a teacher, because that would
+  leak other groups' volume.
+- **`students.total` counts students with an active membership in those
+  groups** (current membership, the same rule as the reports); `active` is the
+  subset whose status is `active`. Students with no active membership are not
+  counted — see OD-042.
+- `groups.total` counts the visible groups (after `group_id`).
+- Page amounts are decimal strings summed with `BigDecimal`; nothing is
+  re-aggregated on the client.
+- `weekly_evaluations` counts stored rows whose `week_start_date` falls inside
+  the month. `computed` is never promoted.
+- **No attendance rate, no derived percentage** — the business rules define
+  neither, so the dashboard reports raw counts only.
+- The dashboard never writes, never creates an evaluation and never runs the
+  engine.

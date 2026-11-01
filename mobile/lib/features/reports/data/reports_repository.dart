@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/providers.dart';
+import '../domain/dashboard_summary.dart';
 import '../domain/monthly_report.dart';
 import '../domain/weekly_report.dart';
 
@@ -53,6 +54,25 @@ class ReportsRepository {
     );
 
     return MonthlyReport.fromJson(
+      response.data!['data'] as Map<String, dynamic>,
+    );
+  }
+
+  /// Center KPIs for one calendar month. The server scopes every figure to the
+  /// groups the actor can see; the client never derives a total.
+  Future<DashboardSummary> dashboard({
+    required String month,
+    int? groupId,
+  }) async {
+    final response = await _api.dio.get<Map<String, dynamic>>(
+      '/dashboard',
+      queryParameters: <String, dynamic>{
+        'month': month,
+        if (groupId != null) 'group_id': groupId,
+      },
+    );
+
+    return DashboardSummary.fromJson(
       response.data!['data'] as Map<String, dynamic>,
     );
   }

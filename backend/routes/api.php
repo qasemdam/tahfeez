@@ -59,7 +59,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('weekly-evaluations/{weeklyEvaluation}', [WeeklyEvaluationController::class, 'show']);
         Route::patch('weekly-evaluations/{weeklyEvaluation}', [WeeklyEvaluationController::class, 'update']);
 
-        // Read-only reports.
+        // Read-only reports and the center dashboard.
+        Route::get('dashboard', [ReportController::class, 'dashboard']);
         Route::get('reports/weekly', [ReportController::class, 'weekly']);
         Route::get('reports/monthly', [ReportController::class, 'monthly']);
     });
