@@ -22,8 +22,11 @@ use App\Policies\ReportPolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\StudentPolicy;
 use App\Policies\WeeklyEvaluationPolicy;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -62,5 +65,18 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(WeeklyReport::class, ReportPolicy::class);
         Gate::policy(MonthlyReport::class, ReportPolicy::class);
         Gate::policy(DashboardSummary::class, ReportPolicy::class);
+
+        // Login is the only unauthenticated write path, so it is the only
+        // brute-force surface: limit per credential pair, then per address so
+        // one host cannot spray many accounts. A shared NAT keeps working
+        // because the tighter limit is keyed by email + IP, not by IP alone.
+        RateLimiter::for('login', static function (Request $request): array {
+            $email = mb_strtolower((string) $request->input('email'));
+
+            return [
+                Limit::perMinute(5)->by($email.'|'.$request->ip()),
+                Limit::perMinute(30)->by((string) $request->ip()),
+            ];
+        });
     }
 }
