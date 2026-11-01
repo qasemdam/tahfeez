@@ -58,7 +58,7 @@ numbering is kept as the plan of record; the table maps it to delivered work.
 
 | Phase | Delivered slice | Evidence |
 |---|---|---|
-| 1 | Authentication, Students, Groups + teacher assignment history | `feature/phase-1-foundation`, `feature/phase-1-groups` |
+| 1 | Authentication, Students, Groups + teacher assignment history | `feature/phase-1-foundation` |
 | 2 | **not delivered** — measurement runs through `QuranDataProvider` backed by a fixture | OD-029 stays Open/Blocked |
 | 3 | Students (list/search/enrol/show), teacher assignment history | `feature/phase-1-foundation` |
 | 4 | Memorization · Review · Recitation — three separate record types | `feature/phase-1-memorization`, `-review`, `-recitation` |
