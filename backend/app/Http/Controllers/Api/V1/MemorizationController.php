@@ -40,7 +40,7 @@ class MemorizationController extends Controller
 
         if ($request->filled('date')) {
             $request->validate(['date' => ['date_format:Y-m-d']]);
-            $query->whereDate('memorization_date', (string) $request->query('date'));
+            $query->where('memorization_date', (string) $request->query('date'));
         }
 
         $records = $query->orderByDesc('memorization_date')->orderByDesc('id')->paginate(50);

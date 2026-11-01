@@ -75,7 +75,7 @@ class RecordAttendance
             $attendance = Attendance::query()
                 ->where('center_id', $actor->center_id)
                 ->where('student_id', $student->id)
-                ->whereDate('attendance_date', $date)
+                ->where('attendance_date', $date)
                 ->first();
 
             $created = $attendance === null;

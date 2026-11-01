@@ -40,7 +40,7 @@ class ReviewController extends Controller
 
         if ($request->filled('date')) {
             $request->validate(['date' => ['date_format:Y-m-d']]);
-            $query->whereDate('review_date', (string) $request->query('date'));
+            $query->where('review_date', (string) $request->query('date'));
         }
 
         $records = $query->orderByDesc('review_date')->orderByDesc('id')->paginate(50);

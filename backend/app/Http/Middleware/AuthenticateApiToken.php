@@ -41,7 +41,13 @@ class AuthenticateApiToken
 
         $request->attributes->set('api_token', $token);
 
-        $token->forceFill(['last_used_at' => now()])->saveQuietly();
+        // `last_used_at` is telemetry with no reader in the API, and writing it
+        // on every request turns each read into a write on the token's own row —
+        // two requests sharing a device token then serialise on that row. A
+        // coarse timestamp is enough to answer "is this device still in use?".
+        if ($token->last_used_at === null || $token->last_used_at->lt(now()->subMinutes(5))) {
+            $token->forceFill(['last_used_at' => now()])->saveQuietly();
+        }
 
         return $next($request);
     }
