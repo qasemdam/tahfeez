@@ -50,6 +50,7 @@ Rule §22: an undefined rule is **not invented**. It is recorded here, with opti
 | OD-036 | Recitation scope: standalone, no amount, no score yet | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-037 | Evaluation engine calculator contracts; no default weights | **Resolved 2026-10-31** (Phase 1) | — |
 | OD-038 | Weekly evaluation: week key, inline rule set, deferred revisions | **Resolved 2026-11-01** (Phase 1) | — |
+| OD-039 | Weekly report period input and requirement source | **Resolved 2026-11-01** (Phase 1) | — |
 
 **Resolved in review round 1:** OD-002, OD-003, OD-008 fully; OD-005 partially. Their entries below are kept with the decision text and rationale, not deleted — the reasoning is part of the record.
 
@@ -832,4 +833,47 @@ the slice had to decide what to store now without pre-building Phase 6.
 
 **Blocks:** nothing. Phase 6 (templates) can add `template_version_id` FKs and
 a revision chain without rewriting stored rows.
+
+
+---
+
+## OD-039 — Weekly report period input and requirement source · **RESOLVED 2026-11-01** (Phase 1)
+
+**Question.** A weekly report needs a period, but the center's start day is
+configuration that can change. If the report resolves every request from the
+*current* setting, a stored week computed under an older setting would be
+reported with different boundaries. Separately, the report has to show a
+`required_pages` for students who have no stored evaluation.
+
+**Decision.**
+
+- **Two inputs, one required.** `week_key` is a reference date the server
+  resolves through `WeekPeriodResolver` (center timezone + current start day).
+  `week_start_date` is used **verbatim** as the boundary, so a historical week
+  stays readable after the setting changes. Neither value is ever computed on
+  the client.
+- **The report reads records, not evaluations.** Memorization, review,
+  recitation and attendance are aggregated from the domain tables for
+  `date BETWEEN start AND end`. The report never runs the evaluation engine and
+  never creates a weekly evaluation: `evaluation` is `null` when none exists.
+- **The requirement comes from the evaluation when there is one.** If a stored
+  evaluation exists, `required_pages` is its snapshot — the requirement that was
+  in force for that week. Otherwise the profile version effective at the week
+  start is read; failing that, the BR-EVL-01 default (`RequiredPages::DEFAULT`,
+  one place in code) applies. The report therefore never shows two different
+  requirements for the same student in one row.
+- **Memorization achievement is computed from live records** with
+  `Achievement::percentage` (the canonical uncapped formula), so a record added
+  after the evaluation was frozen still shows in the memorization section while
+  the `evaluation` section keeps its snapshot. The two figures are deliberately
+  separate and are never averaged (BR-EVL-15).
+- **No attendance rate.** The business rules define four statuses but no rate,
+  so the report returns the counts only rather than inventing a formula.
+- **Rows are current memberships.** The student list is the active group
+  membership in the actor's scope; a student who left the group before the week
+  is not resurrected. Historical *records* keep their own `group_id`/`teacher_id`,
+  which the domains already store.
+
+**Blocks:** nothing. Monthly/student/attendance reports can reuse the same query
+shape and the same scope rule.
 

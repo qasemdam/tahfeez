@@ -14,6 +14,7 @@ use App\Domain\Evaluation\Rules\EvaluationRuleSet;
 use App\Domain\Evaluation\Rules\MissingDataPolicy;
 use App\Domain\Evaluation\Services\EvaluationEngine;
 use App\Domain\Evaluation\Services\WeekPeriodResolver;
+use App\Domain\Evaluation\Support\RequiredPages;
 use App\Domain\Evaluation\ValueObjects\EvaluationProfile as EvaluationProfileSnapshot;
 use App\Domain\Memorization\Models\Memorization;
 use App\Domain\Recitation\Models\Recitation;
@@ -118,7 +119,7 @@ class CreateWeeklyEvaluation
 
         $profileVersion = $this->resolveProfileVersion($student, $period->start, $data['profile_version_id'] ?? null);
 
-        $requiredPages = $profileVersion?->required_pages ?? '1.00';
+        $requiredPages = $profileVersion?->required_pages ?? RequiredPages::DEFAULT;
         $ruleSetJson = $profileVersion?->rule_set;
         $ruleSet = $this->hydrateRuleSet($ruleSetJson);
         $gradeScores = is_array($ruleSetJson) ? ($ruleSetJson['recitation_grade_scores'] ?? []) : [];

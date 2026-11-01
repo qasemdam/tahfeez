@@ -8,6 +8,7 @@ use App\Domain\Groups\Models\Group;
 use App\Domain\Memorization\Models\Memorization;
 use App\Domain\Quran\Contracts\QuranDataProvider;
 use App\Domain\Recitation\Models\Recitation;
+use App\Domain\Reports\DTOs\WeeklyReport;
 use App\Domain\Review\Models\Review;
 use App\Domain\Students\Models\Student;
 use App\Infrastructure\Quran\FixtureQuranDataProvider;
@@ -15,6 +16,7 @@ use App\Policies\AttendancePolicy;
 use App\Policies\GroupPolicy;
 use App\Policies\MemorizationPolicy;
 use App\Policies\RecitationPolicy;
+use App\Policies\ReportPolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\StudentPolicy;
 use App\Policies\WeeklyEvaluationPolicy;
@@ -55,5 +57,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Review::class, ReviewPolicy::class);
         Gate::policy(Recitation::class, RecitationPolicy::class);
         Gate::policy(WeeklyEvaluation::class, WeeklyEvaluationPolicy::class);
+        Gate::policy(WeeklyReport::class, ReportPolicy::class);
     }
 }

@@ -176,7 +176,7 @@ Publishing an invalid template (weights ≠ 100) returns `422` with `errors.weig
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/dashboard` | Center KPIs for a period |
-| GET | `/reports/weekly` | `?week=` |
+| GET | `/reports/weekly` | `?week_key=` or `?week_start_date=`, plus `group_id` / `student_id` — implemented, see §7.1 |
 | GET | `/reports/monthly` | `?month=YYYY-MM` |
 | GET | `/reports/students/{id}` | Student report |
 | GET | `/reports/attendance` | `?from=&to=&student_id=` |
@@ -188,6 +188,79 @@ Publishing an invalid template (weights ≠ 100) returns `422` with `errors.weig
 | GET | `/exports/{id}` | Status + signed download URL |
 
 Exports are asynchronous, scoped to the requester's permissions, and expire (BR-RPT-03).
+
+### 7.1 Weekly report
+
+`GET /reports/weekly` · permission `reports.view` · read-only.
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `week_key` | `Y-m-d` | a date inside the week; the server resolves the boundaries from the center's start day and timezone |
+| `week_start_date` | `Y-m-d` | used **verbatim** as the week start (end = start + 6 days). This is what a historical report needs once the center's start day has changed |
+| `group_id` | int | optional; out-of-scope ids simply return no rows |
+| `student_id` | int | optional |
+
+Exactly one of `week_key` / `week_start_date` is required; neither present is
+`422` with `errors.week_key`.
+
+The response is one row per student with an active membership in the actor's
+scope. Scope is structural: a manager sees the center, a teacher sees only their
+own groups, and a cross-center filter yields an empty list.
+
+```json
+{
+  "data": {
+    "week": {
+      "week_key": "2026-10-24",
+      "start_date": "2026-10-24",
+      "end_date": "2026-10-30",
+      "start_day": "saturday"
+    },
+    "students": [
+      {
+        "student": { "id": 1, "name": "..." },
+        "group": { "id": 2, "name": "..." },
+        "teacher": { "id": 3, "name": "..." },
+        "attendance": { "present": 4, "late": 1, "excused_absence": 1, "unexcused_absence": 0 },
+        "memorization": {
+          "required_pages": "1.00",
+          "actual_pages": "2.0000",
+          "achievement_percentage": "200.00",
+          "sessions": 3
+        },
+        "review": { "pages": "0.5000", "sessions": 2 },
+        "recitation": {
+          "sessions": 1,
+          "grades": { "good": 1 },
+          "errors": { "hifz": 2, "tajweed": 0, "reading": 1 }
+        },
+        "evaluation": {
+          "id": 9,
+          "weighted_score": "87.50",
+          "achievement_percentage": "200.00",
+          "is_complete": true,
+          "status": "computed"
+        }
+      }
+    ],
+    "totals": { "students": 1 }
+  }
+}
+```
+
+Notes:
+
+- `memorization.achievement_percentage` is **uncapped** and computed from the
+  week's records; it is never normalised against the top student.
+- `review` is a separate figure, never folded into memorization (BR-EVL-15).
+- `recitation` reports the stored sessions, grade counts and error totals. No
+  score is derived from a grade — that mapping is rule-set data.
+- `evaluation` is the **stored** weekly evaluation (`null` when none exists).
+  The report never computes one and never reinterprets an old one with the
+  current profile.
+- No attendance rate is returned: no definition of it exists in the business
+  rules, so the counts are reported as-is.
+
 
 ---
 
