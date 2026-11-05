@@ -37,12 +37,16 @@ shipped.
 | Package | Version | Licence |
 |---|---|---|
 | `fakerphp/faker` | 1.24.1 | MIT |
+| `laravel/pail` | 1.2.7 | MIT |
 | `laravel/pint` | 1.30.4 | MIT |
 | `laravel/sail` | 1.69.0 | MIT |
 | `mockery/mockery` | 1.6.15 | BSD-3-Clause |
 | `nunomaduro/collision` | 8.9.5 | MIT |
 | `phpunit/phpunit` | 11.5.57 | BSD-3-Clause |
 | `smalot/pdfparser` | 2.13.1 | LGPL-3.0 |
+
+`laravel/pail` is a log viewer used while developing locally; it is not loaded by
+the application at runtime and is not part of a production image.
 
 `smalot/pdfparser` is the only LGPL component in the tree, and it is used by the
 export tests alone (they parse the generated PDF back and read it). It is a dev
