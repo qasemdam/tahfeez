@@ -553,6 +553,11 @@ subset (`MPDFAA+DejaVuSans`, `Type0`/`Identity-H`, with a `ToUnicode` map) is
 produced from `vendor/mpdf/mpdf/ttfonts`, so a clean deployment that ran
 `composer install` needs nothing from the host operating system.
 
+The engine is GPL-2.0-only and its adoption is tied to the centrally hosted
+model; any future distribution of the backend needs a licence review first. The
+record, the alternatives and the review triggers are in
+[`dependencies.md`](dependencies.md) §3.
+
 #### XLSX layout
 
 A `ملخص` sheet holds the title, the period and the report totals, then one
