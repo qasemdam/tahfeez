@@ -37,7 +37,7 @@ Base URL: `/api/v1` · Content type: `application/json` · Auth: Bearer (Sanctum
 }
 ```
 
-Status codes used: `200` `201` `204` `400` `401` `403` `404` `409` `410` `422` `423` `429` `500`.
+Status codes used: `200` `201` `204` `400` `401` `403` `404` `409` `410` `422` `423` `429` `500` `503`.
 
 ---
 
@@ -64,13 +64,86 @@ device's token row, and a revoked or expired token is `401`.
 
 ## 3. Reference data
 
-| Method | Path | Notes |
+| Method | Path | Status | Notes |
+|---|---|---|---|
+| GET | `/quran/surahs` | **implemented** | Every surah of the active snapshot, ordered by number |
+| GET | `/quran/meta` | planned | Active dataset identity — needs a provider extension, see below |
+| GET | `/quran/surahs/{id}/ayahs` | planned | Ayah list with page/line coordinates |
+| GET | `/quran/pages/{n}` | planned | Page metadata (`lines_count`, juz where available) |
+| POST | `/quran/measure` | planned | `{from_ayah_id, to_ayah_id}` → `{amount_lines, amount_pages, from_page, to_page, dataset_version_id}` |
+
+### Where the data comes from
+
+Every Quran endpoint answers through `QuranDataProvider`. The binding
+(`config/quran.php`) is the database snapshot in production and the development
+fixture outside it:
+
+| `QURAN_PROVIDER` | local / testing | production |
 |---|---|---|
-| GET | `/quran/meta` | Active dataset: `dataset_version_id`, source, source_version, imported_at, checksum, validation_status, surah/ayah/page counts |
-| GET | `/quran/surahs` | 114 rows, cacheable, `ETag` |
-| GET | `/quran/surahs/{id}/ayahs` | Ayah list with page/line coordinates |
-| GET | `/quran/pages/{n}` | Page metadata (`lines_count`, juz where available) |
-| POST | `/quran/measure` | `{from_ayah_id, to_ayah_id}` → `{amount_lines, amount_pages, from_page, to_page, dataset_version_id}` |
+| `auto` (default) | fixture | **database** |
+| `fixture` | fixture | fixture (explicitly opted in) |
+| `database` | database | database |
+
+The database provider reads the snapshot whose `is_active` is true **and** whose
+`validation_status` is `passed`. It never falls back to another snapshot, and it
+never falls back to the fixture in production.
+
+### `GET /quran/surahs`
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" "$API/v1/quran/surahs"
+```
+
+```json
+{
+  "data": [
+    { "id": 1, "name_ar": "…", "ayah_count": 7, "page_start": 1, "page_end": 1 }
+  ]
+}
+```
+
+The five fields are the shape the Flutter client parses today; nothing was added
+or renamed. Rows come back in mushaf order (ascending `id`), and only from the
+active snapshot — rows belonging to an inactive one are never mixed in.
+
+### When no usable snapshot exists
+
+A deployment without an active, validated dataset is a **503**, not a 500 and
+not a degraded response with fixture data:
+
+```json
+{
+  "type": "https://tahfeez.app/errors/quran-data-unavailable",
+  "title": "Quran data unavailable",
+  "status": 503,
+  "detail": "No active Quran dataset is available."
+}
+```
+
+The same answer is returned when the active snapshot is `incomplete` or
+`failed`, or when its validation report disagrees with its status. The
+provider's own message (which names the version and its status) is logged, never
+returned: an API client learns that the data is unavailable, not why the
+deployment is misconfigured.
+
+### `/quran/meta` is not implemented yet
+
+The documented shape needs `source`, `imported_at`, `checksum`, and surah/page/
+ayah counts. `QuranDataProvider` exposes only `datasetVersion()` and
+`datasetVersionId()`, so the endpoint cannot be built without either querying the
+database from the controller — which would break the one rule the domain relies
+on — or extending the contract.
+
+The minimal change, awaiting approval: add
+
+```php
+public function metadata(): QuranDatasetMetadata;   // edition, source, source_version,
+                                                    // imported_at, checksum, counts
+```
+
+to `QuranDataProvider`, implement it in both providers from the row they already
+read, and have the controller return it. Until then the endpoint stays
+documented as planned rather than shipped half-filled.
 
 `/quran/measure` is a **read-only computation endpoint**: it exists so the client can verify its local algorithm against the server. It writes nothing. `dataset_version_id` is returned so the caller knows exactly which snapshot produced the number.
 

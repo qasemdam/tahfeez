@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Quran\Exceptions\QuranDataUnavailable;
 use App\Domain\Reports\Export\ExportTooLarge;
 use App\Http\Middleware\AuthenticateApiToken;
 use Illuminate\Foundation\Application;
@@ -29,5 +30,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 'error' => 'export_too_large',
                 'limits' => $exception->context(),
             ], 422);
+        });
+
+        // No usable Quran dataset is a deployment state, not a client error and
+        // not a bug: 503 with the project's error envelope. The provider's own
+        // message names the version and the status; it stays in the log.
+        $exceptions->render(static function (QuranDataUnavailable $exception): JsonResponse {
+            return response()->json([
+                'type' => 'https://tahfeez.app/errors/quran-data-unavailable',
+                'title' => 'Quran data unavailable',
+                'status' => 503,
+                'detail' => 'No active Quran dataset is available.',
+            ], 503);
         });
     })->create();
