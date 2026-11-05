@@ -13,6 +13,7 @@ use App\Domain\Reports\DTOs\MonthlyReport;
 use App\Domain\Reports\DTOs\WeeklyReport;
 use App\Domain\Review\Models\Review;
 use App\Domain\Students\Models\Student;
+use App\Infrastructure\Quran\DatabaseQuranDataProvider;
 use App\Infrastructure\Quran\FixtureQuranDataProvider;
 use App\Policies\AttendancePolicy;
 use App\Policies\GroupPolicy;
@@ -36,9 +37,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // The only binding business code sees. The implementation is a
-        // development fixture until the dataset gate (OD-029) is resolved.
-        $this->app->singleton(QuranDataProvider::class, FixtureQuranDataProvider::class);
+        // The only binding business code sees. `auto` resolves to the database
+        // provider in production and to the fixture everywhere else, so a hosted
+        // deployment never serves fixture data as if it were canonical, and a
+        // developer machine keeps working before any dataset is imported
+        // (OD-029). Scoped, not singleton: activating a new dataset must take
+        // effect on the next request.
+        $this->app->scoped(QuranDataProvider::class, static function ($app): QuranDataProvider {
+            $configured = (string) config('quran.provider', 'auto');
+
+            $useDatabase = $configured === 'database'
+                || ($configured === 'auto' && $app->environment('production'));
+
+            return $useDatabase
+                ? new DatabaseQuranDataProvider
+                : new FixtureQuranDataProvider;
+        });
     }
 
     /**
