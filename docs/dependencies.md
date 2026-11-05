@@ -79,8 +79,9 @@ The adoption of mPDF is **tied to the central hosted model**. Under that model:
 - The backend is operated by us and is not distributed to customers.
 - A customer receives HTTP responses and generated files (PDF, XLSX, HTML),
   never the program itself.
-- A generated report is output of the program, not a derivative work of the
-  engine, so the report files carry no copyleft obligation.
+- A generated report is output of the program. What obligations, if any, attach
+  to that output depends on how it is treated under the applicable licence; that
+  is part of the review described in §3.2, not something assumed here.
 
 This is the working assumption recorded for the SaaS model. It is an engineering
 record, not a legal opinion.
