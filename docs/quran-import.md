@@ -150,16 +150,20 @@ its first ayah or a preceding header page is a convention of the source, which
 is unverified (OD-029). Containment is provable from the dataset; equality is
 not asserted.
 
-Recorded but not blocking:
+| V-12 | **Golden regression.** Hashes a small synthetic fixture with the same canonical serialisation `content_digest` uses and compares it with the digest recorded in the fixture. It guards the serialisation, not the dataset — see §8 |
+
+One check still cannot run:
 
 | ID | Status | Why |
 |---|---|---|
-| V-10 | **skipped** | Deterministic sample comparison needs a checked-in golden sample; the repository has none yet (OD-029) |
-| V-12 | **skipped** | Golden boundary fixtures, same reason |
+| V-10 | **skipped** | Deterministic sample comparison needs real reference values (text + page + line) from an official 1405H source; the repository has none (OD-029) |
 
-Skipped is not passed: the reason is stored with the check, the command prints a
-warning, and — because both are listed as *critical* — the snapshot is stored as
+Skipped is not passed: the reason is stored with the check and the command prints
+a warning. Because V-10 is *critical*, a snapshot that skips it is stored as
 `incomplete` rather than `passed`. See §5.
+
+`V-12` does not change that. It proves the canonical form is stable; it says
+nothing about the Quran text, so a dataset that passes it is still `incomplete`.
 
 `V-15` validates a *declaration*; it never supplies one. The dataset must still
 state `lines_count` for every page, and the measurement path reads that value.
@@ -313,3 +317,76 @@ php artisan quran:activate 2   # go back
 The command exits `1`, prints the reason, and states that nothing changed. The
 previously active snapshot is still active; the target is still inactive. A
 refusal is always a refusal to change state, never a half-applied switch.
+
+## 8. Re-validation and immutability
+
+The import report describes the payload *before* it was written. Once the rows
+are in, nothing re-checked them — until S6.
+
+### `content_digest`
+
+A fingerprint of the stored rows, stored beside the file checksum:
+
+| Column | Answers |
+|---|---|
+| `checksum_sha256` | *which file* was imported |
+| `content_digest` | *what is in the tables now* |
+
+The checksum keeps matching even if a row is edited, because the file did not
+change. The digest is what detects that.
+
+Canonical form (`tahfeez-quran-digest-v1`): one record per line, `\n` between
+lines, SHA-256 over the UTF-8 bytes.
+
+```text
+tahfeez-quran-digest-v1
+S["surah",1,"الفاتحة","Al-Fatihah",7,1,1]
+P["page",1,8,0,1,null,null]
+A["ayah",1,1,1,"بِسْمِ…",1,1,1,1,1,false]
+```
+
+Rows are sorted by primary key (never insertion order), every value is cast
+before encoding so a driver returning `"1"` instead of `1` cannot change the
+hash, and the dataset version id is **not** included: the digest fingerprints
+content, so two snapshots with identical content hash equal.
+
+### The rows are frozen once accepted
+
+`quran_surahs`, `quran_pages` and `quran_ayahs` cannot be updated or deleted when
+their snapshot is `passed` or `incomplete` — at the database level, so `psql` is
+refused too, not just the application. Deleting an accepted version is refused
+as well, otherwise the FK cascade would remove its children and bypass the guard.
+
+| | PostgreSQL | SQLite |
+|---|---|---|
+| Mechanism | `plpgsql` function + row triggers | row triggers with `RAISE(ABORT)` |
+| Scope | `BEFORE UPDATE OR DELETE` on the three tables, `BEFORE DELETE` on the versions table | same |
+| Importer | unaffected: it writes while the version is still `pending` | same |
+| Activation | unaffected: it updates `is_active` on the versions row | same |
+
+MySQL is not supported by this schema.
+
+### `quran:validate {version_id}`
+
+Read-only: it never writes `validation_status`, `validation_report`,
+`content_digest` or `is_active`.
+
+```bash
+php artisan quran:validate 3
+```
+
+It reads the snapshot back (`SnapshotReader`, three ordered queries), re-runs the
+same `DatasetValidator` the importer ran, recomputes the digest, and reports
+three independent comparisons:
+
+| Comparison | What a mismatch means |
+|---|---|
+| stored status vs recomputed status | the snapshot claims a state its rows no longer produce |
+| stored digest vs computed digest | the rows are not the rows that were imported |
+| stored stats vs recomputed stats | the stored report no longer describes the data |
+
+Exit code `0` only when the data is intact **and** the snapshot is activatable —
+that is, when the recomputed status is `passed`. Today that cannot happen: V-10
+is skipped and critical, so the command exits `1` with *"intact but not
+complete"*. A non-zero exit here means "not activatable", not necessarily
+"corrupted"; the digest line says which.

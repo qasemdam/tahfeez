@@ -1,0 +1,26 @@
+{
+  "note": "SYNTHETIC REGRESSION FIXTURE — NOT QURAN DATA. Surah names, ayah text and all coordinates below are invented placeholders used only to detect changes in the canonical serialisation that content_digest depends on. It is not a reference for the mushaf and must never be imported as a dataset.",
+  "synthetic": true,
+  "canonical_version": "tahfeez-quran-digest-v1",
+  "expected_digest": "023258b295f697b591b12b612c607fbf486a7a6bad1f2ddab2a86990f9a3e700",
+  "payload": {
+    "edition": "synthetic_regression",
+    "source_version": "golden-v1",
+    "surahs": [
+      { "id": 1, "name_ar": "سورة اصطناعية أولى", "name_en": "Synthetic One", "ayah_count": 3, "page_start": 1, "page_end": 1 },
+      { "id": 2, "name_ar": "سورة اصطناعية ثانية", "name_en": "Synthetic Two", "ayah_count": 2, "page_start": 1, "page_end": 2 }
+    ],
+    "pages": [
+      { "page_number": 1, "lines_count": 8, "line_offset": 0, "juz_number": 1 },
+      { "page_number": 2, "lines_count": 15, "line_offset": 8, "juz_number": 1 },
+      { "page_number": 3, "lines_count": 15, "line_offset": 23, "juz_number": 1 }
+    ],
+    "ayahs": [
+      { "id": 1, "surah_id": 1, "number_in_surah": 1, "text_uthmani": "نص اصطناعي ١", "page_start": 1, "line_start": 1, "page_end": 1, "line_end": 1, "juz_number": 1, "is_sajda": false },
+      { "id": 2, "surah_id": 1, "number_in_surah": 2, "text_uthmani": "نص اصطناعي ٢", "page_start": 1, "line_start": 2, "page_end": 1, "line_end": 3, "juz_number": 1, "is_sajda": false },
+      { "id": 3, "surah_id": 1, "number_in_surah": 3, "text_uthmani": "نص اصطناعي ٣", "page_start": 1, "line_start": 4, "page_end": 1, "line_end": 4, "juz_number": 1, "is_sajda": false },
+      { "id": 4, "surah_id": 2, "number_in_surah": 1, "text_uthmani": "نص اصطناعي ٤", "page_start": 1, "line_start": 8, "page_end": 2, "line_end": 2, "juz_number": 1, "is_sajda": false },
+      { "id": 5, "surah_id": 2, "number_in_surah": 2, "text_uthmani": "نص اصطناعي ٥", "page_start": 2, "line_start": 3, "page_end": 2, "line_end": 5, "juz_number": 1, "is_sajda": false }
+    ]
+  }
+}

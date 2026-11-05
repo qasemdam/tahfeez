@@ -114,9 +114,10 @@ class QuranImportCommandTest extends TestCase
         $statuses = array_column($report['checks'], 'status', 'id');
         $this->assertSame('passed', $statuses['V-01']);
         $this->assertSame('passed', $statuses['V-15']);
-        // Golden-sample checks need a checked-in fixture this repository does not have yet.
+        // V-10 needs a real reference sample (OD-029); V-12 runs against the
+        // synthetic regression fixture and therefore passes.
         $this->assertSame('skipped', $statuses['V-10']);
-        $this->assertSame('skipped', $statuses['V-12']);
+        $this->assertSame('passed', $statuses['V-12']);
     }
 
     public function test_the_edition_must_be_declared(): void

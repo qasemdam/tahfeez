@@ -162,6 +162,8 @@ final class QuranImporter
                     ->where('id', $versionId)
                     ->update([
                         'validation_status' => $status,
+                        // Fingerprint of the rows just written, not of the file.
+                        'content_digest' => ContentDigest::of($payload),
                         'validation_report' => json_encode($report->toArray(), JSON_UNESCAPED_UNICODE),
                         'updated_at' => now(),
                     ]);

@@ -49,7 +49,7 @@ final class DatasetValidator
             $this->text($surahs, $ayahs),
             $this->skipped('V-10', 'deterministic sample comparison', 'no golden sample is checked in (OD-029)'),
             $this->referentialIntegrity($ayahs, $surahById, $pageByNumber),
-            $this->skipped('V-12', 'golden boundary fixtures', 'no golden fixture is checked in (OD-029)'),
+            $this->goldenRegression(),
             $this->requiredFields($surahs, $pages, $ayahs),
             $this->editionPageProfile($payload->edition, $pages),
             $this->rangeOrder($ayahs),
@@ -534,6 +534,56 @@ final class DatasetValidator
             $shortLines,
             $lines,
         ));
+    }
+
+    /**
+     * V-12 — golden regression of the canonical serialisation.
+     *
+     * A small synthetic fixture is hashed with the same ContentDigest the
+     * importer writes and the revalidator compares. If the canonical form ever
+     * changes without a deliberate fixture update, this fails and no import
+     * passes — which is the point: a silent change there would make every
+     * content_digest incomparable with the ones already stored.
+     *
+     * It does **not** say anything about the dataset being validated, and it is
+     * not a substitute for V-10: the fixture is synthetic, so it proves the
+     * serialisation is stable, not that the Quran text or coordinates are right.
+     *
+     * @return array{id: string, label: string, status: string, detail: string}
+     */
+    private function goldenRegression(): array
+    {
+        $path = resource_path('quran/golden-regression.json');
+
+        if (! is_file($path)) {
+            return $this->skipped('V-12', 'golden regression', 'the synthetic regression fixture is missing');
+        }
+
+        $document = json_decode((string) file_get_contents($path), true);
+
+        if (! is_array($document) || ! isset($document['payload'], $document['expected_digest'])) {
+            return $this->failed('V-12', 'golden regression', 'the regression fixture is malformed');
+        }
+
+        $payload = new DatasetPayload(
+            edition: (string) ($document['payload']['edition'] ?? ''),
+            sourceVersion: (string) ($document['payload']['source_version'] ?? ''),
+            surahs: (array) $document['payload']['surahs'],
+            pages: (array) $document['payload']['pages'],
+            ayahs: (array) $document['payload']['ayahs'],
+        );
+
+        $digest = ContentDigest::of($payload);
+
+        if (! hash_equals((string) $document['expected_digest'], $digest)) {
+            return $this->failed('V-12', 'golden regression', sprintf(
+                'canonical serialisation changed: fixture expects %s…, computed %s…',
+                substr((string) $document['expected_digest'], 0, 12),
+                substr($digest, 0, 12),
+            ));
+        }
+
+        return $this->passed('V-12', 'golden regression', 'synthetic fixture reproduces '.substr($digest, 0, 12));
     }
 
     /**
