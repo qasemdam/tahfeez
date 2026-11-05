@@ -19,6 +19,16 @@ class ReportPolicy
         return $user->hasPermission('reports.view');
     }
 
+    /**
+     * Exporting is a separate grant (`reports.export`): reading a report on
+     * screen and taking a file of it out of the center are different actions,
+     * and a teacher only gets the latter when the manager enables it.
+     */
+    public function export(User $user): bool
+    {
+        return $user->hasPermission('reports.export');
+    }
+
     public function view(User $user, WeeklyReport $report): bool
     {
         return $this->viewAny($user);

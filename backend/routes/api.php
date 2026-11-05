@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\MemorizationController;
 use App\Http\Controllers\Api\V1\QuranController;
 use App\Http\Controllers\Api\V1\RecitationController;
 use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\ReportExportController;
 use App\Http\Controllers\Api\V1\ReviewController;
 use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\TeacherController;
@@ -64,5 +65,11 @@ Route::prefix('v1')->group(function (): void {
         Route::get('dashboard', [ReportController::class, 'dashboard']);
         Route::get('reports/weekly', [ReportController::class, 'weekly']);
         Route::get('reports/monthly', [ReportController::class, 'monthly']);
+
+        // The same reports as files (BR-RPT-03). The export paths sit under the
+        // report they export and take the same filters plus `format`.
+        Route::get('dashboard/export', [ReportExportController::class, 'dashboard']);
+        Route::get('reports/weekly/export', [ReportExportController::class, 'weekly']);
+        Route::get('reports/monthly/export', [ReportExportController::class, 'monthly']);
     });
 });

@@ -184,16 +184,22 @@ Publishing an invalid template (weights ≠ 100) returns `422` with `errors.weig
 | GET | `/dashboard` | `?month=YYYY-MM`, plus `group_id` — implemented, see §7.3 |
 | GET | `/reports/weekly` | `?week_key=` or `?week_start_date=`, plus `group_id` / `student_id` — implemented, see §7.1 |
 | GET | `/reports/monthly` | `?month=YYYY-MM`, plus `group_id` / `student_id` — implemented, see §7.2 |
+| GET | `/dashboard/export` | same filters + `format` — implemented, see §7.4 |
+| GET | `/reports/weekly/export` | same filters + `format` — implemented, see §7.4 |
+| GET | `/reports/monthly/export` | same filters + `format` — implemented, see §7.4 |
 | GET | `/reports/students/{id}` | Student report |
 | GET | `/reports/attendance` | `?from=&to=&student_id=` |
 | GET | `/reports/memorization` | `?from=&to=` |
 | GET | `/reports/review` | |
 | GET | `/reports/recitation` | |
 | GET | `/reports/rankings` | `?week=&scope=` |
-| POST | `/exports` | `{type, format, params}` → `202` + job id |
-| GET | `/exports/{id}` | Status + signed download URL |
+| POST | `/exports` | `{type, format, params}` → `202` + job id — not implemented |
+| GET | `/exports/{id}` | Status + signed download URL — not implemented |
 
-Exports are asynchronous, scoped to the requester's permissions, and expire (BR-RPT-03).
+The three `/export` endpoints are synchronous and return the file itself; they
+cover a single week or month, which is a bounded row count. The asynchronous
+job endpoints (`POST /exports`, `GET /exports/{id}`) that BR-RPT-03 reserves for
+large ranges are **not** implemented in this phase — see §7.4 for the limits.
 
 ### 7.1 Weekly report
 
@@ -418,3 +424,128 @@ Scope and meaning:
   neither, so the dashboard reports raw counts only.
 - The dashboard never writes, never creates an evaluation and never runs the
   engine.
+
+### 7.4 Report exports — PDF, XLSX and print HTML
+
+Three endpoints export a report that already exists as JSON. Each one takes
+**exactly** the filters of its report plus a `format`; the period rules,
+validation messages and scope are inherited, not restated.
+
+| Method | Path | Permission | Report |
+|---|---|---|---|
+| GET | `/reports/weekly/export` | `reports.export` | §7.1 |
+| GET | `/reports/monthly/export` | `reports.export` | §7.2 |
+| GET | `/dashboard/export` | `reports.export` | §7.3 |
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `format` | `pdf` \| `xlsx` \| `html` | optional, defaults to `html` (the print view) |
+| *(report filters)* | | identical to the report being exported: `week_key` / `week_start_date` / `month`, `group_id`, `student_id` |
+
+An unsupported `format` is `422` with `errors.format`. A missing `week_key`,
+both week parameters, or a malformed `month` fail exactly as in §7.1–§7.3.
+
+#### Response
+
+| `format` | `Content-Type` | `Content-Disposition` |
+|---|---|---|
+| `pdf` | `application/pdf` | `attachment` |
+| `xlsx` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | `attachment` |
+| `html` | `text/html; charset=UTF-8` | `inline` |
+
+File names are ASCII (no Arabic in a header value) and carry the period:
+
+| Endpoint | File name |
+|---|---|
+| weekly | `tahfeez-weekly-2026-10-24_2026-10-30.pdf` |
+| monthly | `tahfeez-monthly-2026-10.pdf` |
+| dashboard | `tahfeez-dashboard-2026-10.pdf` |
+
+The extension follows `format` (`.pdf`, `.xlsx`, `.html`).
+
+```bash
+# Weekly report as PDF
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API/v1/reports/weekly/export?week_key=2026-10-26&format=pdf" -o weekly.pdf
+
+# Monthly report for one group as Excel
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API/v1/reports/monthly/export?month=2026-10&group_id=12&format=xlsx" -o monthly.xlsx
+
+# Print view (default format), ready for the browser's print dialog
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API/v1/reports/weekly/export?week_start_date=2026-10-24" -o weekly.html
+```
+
+#### What the files contain
+
+The figures are produced by the same query objects as §7.1–§7.3, so an export
+cannot disagree with the report it came from. Nothing is recomputed.
+
+The weekly and monthly exports carry three tables, one per activity type:
+
+1. **الحضور والحفظ والمراجعة** — attendance counts, `required_pages`,
+   `actual_pages`, achievement percentage, memorization sessions, review pages
+   and review sessions.
+2. **التسميع** — recitation sessions, the three error counters and the stored
+   grade counts.
+3. **التقييم الأسبوعي (لقطة محفوظة)** — the stored evaluation: weighted score,
+   its achievement percentage, completeness and status. The monthly export
+   replaces this table with the count of weekly evaluations per student.
+
+The dashboard export is a set of label/value tables (الملخص العام, الحضور,
+النشاط والتقييم) — no per-student rows are rebuilt.
+
+Rules that hold in every format:
+
+- **Achievement percentage is uncapped.** `2.5000` pages against a requirement
+  of `1.00` is exported as `250.00%`, never `100%`.
+- **The weighted score is never mixed with achievement.** It is a 0–100 index
+  and lives in its own table, in its own column, without a percent sign.
+- **No aggregate achievement is added to a totals row.** Averaging uncapped
+  ratios would be a new figure that no business rule defines, so that cell is
+  left empty.
+- **A missing value is `—`, never `0`.** A monthly achievement whose requirement
+  sum is zero is exported as `—`.
+- **Memorization, review and recitation stay separate.** No blended total.
+- **Decimals keep their source scale.** Pages are exported at 4 dp and required
+  pages at 2 dp; the XLSX cell is numeric with an explicit number format
+  (`0.0000`, `0.00`, `0.00"%"`), so `1.5000` never becomes `1.5`.
+
+#### PDF and Arabic
+
+The PDF is produced by mPDF from the same Blade view the print page uses. The
+document is written RTL, uses a font that covers Arabic, and shapes the script
+contextually. Every numeric run (dates, amounts, percentages) is wrapped in
+`dir="ltr"` so the bidi algorithm cannot reorder it: `2026-10-24` is drawn
+`2026-10-24`, not `24-10-2026`. Weekly and monthly PDFs are A4 landscape
+(thirteen columns do not fit a portrait page); the dashboard is A4 portrait.
+
+The print view hides its toolbar under `@media print`, sets `@page` to A4 and
+repeats table headers across pages. `@page` is emitted for the browser only:
+mPDF mis-paginates when it sees an `@page` size and would break the document
+into one page per block.
+
+#### XLSX layout
+
+A `ملخص` sheet holds the title, the period and the report totals, then one
+worksheet per table (all right-to-left, header row frozen, totals row bold).
+Sheet names are the Arabic table headings.
+
+#### Permissions and scope
+
+- `reports.export` — a separate grant from `reports.view`. A manager holds it
+  through `*`; a teacher holds it only when the manager enables it
+  (`permissions.md` §3). Without it the endpoint is `403`.
+- Scope is structural, not a second implementation: the query objects resolve
+  the actor's visible groups, so a teacher's file only contains their own
+  students, and a foreign `group_id` or `student_id` yields an empty report
+  rather than another center's rows.
+
+#### Limits
+
+- Synchronous only: a single week or month per request. There is no job id, no
+  signed download URL and no TTL — BR-RPT-03's asynchronous path is not built.
+- Only the weekly report, the monthly report and the dashboard are exportable.
+  The remaining reports in the §7 table have no endpoint yet.
+- Totals sum amounts and counts. They never sum scores, percentages or grades.
