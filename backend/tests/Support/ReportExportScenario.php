@@ -14,6 +14,7 @@ use App\Domain\Review\Models\Review;
 use App\Domain\Students\Models\Student;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The fixture used by the report export tests: one center, one manager, one
@@ -66,6 +67,72 @@ trait ReportExportScenario
         app(AddStudentToGroup::class)->execute($group ?? $s['group'], $s['manager'], $student->id);
 
         return $student;
+    }
+
+    /**
+     * Tops the center up to `$total` students with an active membership in the
+     * scenario group, using bulk inserts so a 200-row export fixture stays fast.
+     */
+    private function topUpStudents(array $s, int $total): void
+    {
+        $existing = (int) Student::query()->where('center_id', $s['center']->id)->count();
+        $missing = max($total - $existing, 0);
+
+        if ($missing === 0) {
+            return;
+        }
+
+        $now = now();
+        $students = [];
+
+        for ($i = 0; $i < $missing; $i++) {
+            $students[] = [
+                'center_id' => $s['center']->id,
+                'code' => 'BULK-'.($existing + $i),
+                'full_name' => 'طالب إضافي '.($existing + $i),
+                'age_years' => 10,
+                'grade_level' => '5',
+                'guardian_name' => 'ولي الأمر',
+                'guardian_phone' => '0500000000',
+                'enrolled_at' => '2026-01-01',
+                'status' => Student::STATUS_ACTIVE,
+                'version' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($students, 100) as $chunk) {
+            DB::table('students')->insert($chunk);
+        }
+
+        $alreadyMember = DB::table('group_memberships')
+            ->where('group_id', $s['group']->id)
+            ->pluck('student_id')
+            ->all();
+
+        $newIds = DB::table('students')
+            ->where('center_id', $s['center']->id)
+            ->whereNotIn('id', $alreadyMember === [] ? [0] : $alreadyMember)
+            ->pluck('id')
+            ->all();
+
+        $memberships = [];
+
+        foreach ($newIds as $id) {
+            $memberships[] = [
+                'center_id' => $s['center']->id,
+                'group_id' => $s['group']->id,
+                'student_id' => $id,
+                'joined_at' => '2026-01-01',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($memberships, 100) as $chunk) {
+            DB::table('group_memberships')->insert($chunk);
+        }
     }
 
     private function memorization(array $s, string $date, string $pages, ?Student $student = null): Memorization

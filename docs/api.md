@@ -445,6 +445,22 @@ validation messages and scope are inherited, not restated.
 An unsupported `format` is `422` with `errors.format`. A missing `week_key`,
 both week parameters, or a malformed `month` fail exactly as in §7.1–§7.3.
 
+A report that is too large for a synchronous export is also `422`, but with a
+different body — it is a capacity limit, not a bad request:
+
+```json
+{
+  "message": "التقرير أكبر من حد التصدير المتزامن (312 صفًا، الحد 200). ضيّق النطاق عبر group_id أو student_id.",
+  "error": "export_too_large",
+  "limits": { "reason": "rows", "actual": 312, "limit": 200 }
+}
+```
+
+`limits.reason` is `rows` when the row ceiling was hit, or `html_bytes` when a
+single PDF document exceeded the engine's HTML budget. Both are checked before
+the file is built, so the request fails fast instead of exhausting the worker.
+See §7.4.1 for the numbers behind the ceiling.
+
 #### Response
 
 | `format` | `Content-Type` | `Content-Disposition` |
@@ -526,6 +542,17 @@ repeats table headers across pages. `@page` is emitted for the browser only:
 mPDF mis-paginates when it sees an `@page` size and would break the document
 into one page per block.
 
+**The face is pinned to DejaVu Sans.** mPDF's `autoLangToFont` would otherwise
+switch Arabic runs to *XB Riyaz*, a font bundled with the library whose own name
+table declares the GNU General Public License — not a licence this project can
+rely on for embedding. DejaVu ships with the library under the Bitstream Vera
+licence, which explicitly permits embedding and redistribution, and it carries
+the Arabic GSUB tables mPDF needs. `autoScriptToLang` stays enabled: script
+detection still drives shaping, it just no longer swaps the font. The embedded
+subset (`MPDFAA+DejaVuSans`, `Type0`/`Identity-H`, with a `ToUnicode` map) is
+produced from `vendor/mpdf/mpdf/ttfonts`, so a clean deployment that ran
+`composer install` needs nothing from the host operating system.
+
 #### XLSX layout
 
 A `ملخص` sheet holds the title, the period and the report totals, then one
@@ -549,3 +576,48 @@ Sheet names are the Arabic table headings.
 - Only the weekly report, the monthly report and the dashboard are exportable.
   The remaining reports in the §7 table have no endpoint yet.
 - Totals sum amounts and counts. They never sum scores, percentages or grades.
+
+#### 7.4.1 Synchronous export ceiling
+
+An export is built in memory, inside the request. Past a certain size that stops
+being safe — mPDF refuses an HTML string larger than `pcre.backtrack_limit`, and
+every format pays for the whole document in RAM — so the ceiling is enforced
+before the file is generated and reported as `422 export_too_large`.
+
+**The ceiling is 200 rows** (the longest table in the export, i.e. the number of
+students). It is measured, not guessed:
+
+| Rows | PDF | XLSX | HTML | Peak RAM (PDF) | HTML size |
+|---|---|---|---|---|---|
+| 1 | 0.4 s | 0.2 s | 0.05 s | 42 MB | 15 KB |
+| 49 | 1.6 s | 1.0 s | 0.12 s | 50 MB | 183 KB |
+| **200 (limit)** | **6.4 s** | **2.7 s** | **0.24 s** | **74 MB** | **712 KB** |
+| 250 | rejected in 0.23 s | 0.25 s | 0.29 s | 28 MB | — |
+| 300 | rejected in 0.34 s | 0.38 s | 0.35 s | 30 MB | — |
+| 500 | rejected in 0.50 s | 0.54 s | 0.45 s | 32 MB | — |
+| 1000 | rejected in 0.86 s | 1.0 s | 0.92 s | 42 MB | — |
+
+Why 200:
+
+- **The engine's hard limit.** `pcre.backtrack_limit` defaults to 1,000,000
+  bytes of HTML; the weekly report reaches it at ~276 rows. At 200 the document
+  is 712 KB — 71% of the budget, leaving room for longer names.
+- **Memory.** 74 MB peak fits a 128 MB `memory_limit`, the common shared-host
+  default. Without the ceiling the same export needs 132 MB at 500 rows and
+  226 MB at 1000, and dies on a 128 MB worker.
+- **Time.** ~6 s is the worst case a synchronous download should spend. The
+  async path (BR-RPT-03) is what removes the ceiling, not a larger number here.
+
+Rejections are cheap: the guard runs after the sixteen report queries and
+before any rendering, so a 1000-row request costs under a second and never
+allocates the document.
+
+Both knobs live in `config/exports.php`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `max_rows` (`EXPORT_MAX_ROWS`) | `200` | rows per export, all formats |
+| `pdf_html_budget_ratio` (`EXPORT_PDF_HTML_BUDGET_RATIO`) | `0.8` | share of `pcre.backtrack_limit` one PDF may use |
+
+Raise `max_rows` only together with `memory_limit`; the PDF budget scales with
+the host's pcre limit automatically, so it never needs raising.

@@ -35,6 +35,7 @@ final class ReportExportService
         private HtmlReportRenderer $htmlRenderer,
         private PdfReportRenderer $pdfRenderer,
         private XlsxReportRenderer $xlsxRenderer,
+        private ExportGuard $guard,
     ) {}
 
     public function weekly(
@@ -86,6 +87,10 @@ final class ReportExportService
 
     private function render(ExportPayload $payload, ExportFormat $format): ExportResult
     {
+        // Checked before the renderer touches the document: the expensive part
+        // of an export is building the file, not the sixteen queries behind it.
+        $this->guard->assertWithinLimit($payload, $format);
+
         return match ($format) {
             ExportFormat::Pdf => $this->pdfRenderer->render($payload),
             ExportFormat::Xlsx => $this->xlsxRenderer->render($payload),

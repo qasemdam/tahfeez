@@ -663,12 +663,96 @@ class ReportExportApiTest extends TestCase
         $this->assertSame($one, $fortyNine, 'One query per student leaked into the 49-student export.');
     }
 
-    private function queryCountForExport(array $s): int
+    public function test_a_report_at_the_row_limit_is_exported(): void
+    {
+        $s = $this->scenario();
+        $this->topUpStudents($s, 200);
+
+        $book = $this->workbook((string) $this->export(
+            '/api/v1/reports/weekly/export?'.self::WEEK.'&format=xlsx',
+            $s['manager'],
+        )->assertOk()->getContent());
+
+        $sheet = $book->getSheetByName('الحضور والحفظ والمراجعة');
+
+        // Header on row 1, 200 students on rows 2–201, totals on row 202.
+        $this->assertSame('الإجمالي', $sheet->getCell('A202')->getValue());
+        $this->assertNull($sheet->getCell('A203')->getValue());
+    }
+
+    public function test_a_report_over_the_row_limit_is_rejected_with_a_clear_error(): void
+    {
+        $s = $this->scenario();
+        $this->topUpStudents($s, 201);
+
+        $response = $this->export('/api/v1/reports/weekly/export?'.self::WEEK.'&format=pdf', $s['manager'])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'export_too_large')
+            ->assertJsonPath('limits.reason', 'rows')
+            ->assertJsonPath('limits.actual', 201)
+            ->assertJsonPath('limits.limit', 200);
+
+        $this->assertStringContainsString('200', (string) $response->json('message'));
+        $this->assertStringContainsString('group_id', (string) $response->json('message'));
+    }
+
+    public function test_every_format_refuses_a_report_over_the_limit(): void
+    {
+        $s = $this->scenario();
+        $this->topUpStudents($s, 201);
+
+        foreach (['pdf', 'xlsx', 'html'] as $format) {
+            $this->export('/api/v1/reports/weekly/export?'.self::WEEK.'&format='.$format, $s['manager'])
+                ->assertStatus(422)
+                ->assertJsonPath('error', 'export_too_large');
+        }
+    }
+
+    public function test_a_document_over_the_html_budget_is_a_capacity_error_not_a_crash(): void
+    {
+        $s = $this->scenario();
+        $this->memorization($s, '2026-10-25', '1.0000');
+
+        // A host with a small pcre limit: the row ceiling passes, so the byte
+        // budget is the guard that has to catch the document before mPDF does.
+        $previous = (string) ini_get('pcre.backtrack_limit');
+        ini_set('pcre.backtrack_limit', '5000');
+
+        try {
+            $this->export('/api/v1/reports/weekly/export?'.self::WEEK.'&format=pdf', $s['manager'])
+                ->assertStatus(422)
+                ->assertJsonPath('error', 'export_too_large')
+                ->assertJsonPath('limits.reason', 'html_bytes');
+        } finally {
+            ini_set('pcre.backtrack_limit', $previous);
+        }
+
+        // The budget is a PDF constraint; the other formats are unaffected.
+        $this->export('/api/v1/reports/weekly/export?'.self::WEEK.'&format=html', $s['manager'])
+            ->assertOk();
+        $this->export('/api/v1/reports/weekly/export?'.self::WEEK.'&format=xlsx', $s['manager'])
+            ->assertOk();
+    }
+
+    public function test_the_row_guard_adds_no_queries(): void
+    {
+        $s = $this->scenario();
+
+        $one = $this->queryCountForExport($s);
+
+        $this->topUpStudents($s, 200);
+
+        $two = $this->queryCountForExport($s);
+
+        $this->assertSame($one, $two, 'The export ceiling must not add a query per student.');
+    }
+
+    private function queryCountForExport(array $s, string $format = 'xlsx'): int
     {
         DB::flushQueryLog();
         DB::enableQueryLog();
 
-        $this->export('/api/v1/reports/weekly/export?'.self::WEEK.'&format=xlsx', $s['manager'])
+        $this->export('/api/v1/reports/weekly/export?'.self::WEEK.'&format='.$format, $s['manager'])
             ->assertOk();
 
         $count = count(DB::getQueryLog());
