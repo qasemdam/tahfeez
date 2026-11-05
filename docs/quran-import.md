@@ -227,7 +227,89 @@ Writing an adapter before that is settled would encode the wrong edition.
 
 ## 7. Activation
 
-Not implemented in S3 and deliberately not part of `quran:import`. When it
-arrives it must: require `validation_status = passed`, keep exactly one active
-snapshot (the partial unique index enforces it), and never mutate a snapshot —
-activating a different dataset is a switch, not an edit.
+```bash
+php artisan quran:activate {version_id}
+```
+
+Import and activation are separate on purpose: importing stores a snapshot,
+activating decides that the whole product now measures against it. Nothing is
+activated automatically — not by a passing import, not by a restart.
+
+### What it checks
+
+All of it inside one transaction, before anything is written:
+
+| Condition | Refusal |
+|---|---|
+| The version exists | `does not exist` |
+| `validation_status` is literally `passed` | `only a snapshot that passed validation can be activated` |
+| The stored report agrees with the flag | `marked passed but its stored validation report says otherwise` |
+| It has 114 surahs, 604 pages, 6,236 ayahs and no orphan ayah | `is not complete: …` |
+
+`incomplete` and `failed` are never activatable, and the criticality of V-10/V-12
+is not relaxed to make a dataset pass. If a snapshot is `incomplete`, the fix is
+to make the skipped check run, not to lower the bar.
+
+### What it does
+
+```text
+BEGIN
+  lock (advisory, PostgreSQL)
+  read target FOR UPDATE
+  verify
+  UPDATE … SET is_active = false WHERE is_active
+  UPDATE … SET is_active = true  WHERE id = target
+COMMIT
+```
+
+Deactivating before activating keeps the partial unique index satisfied, and
+because both statements are in one transaction no reader ever sees zero active
+snapshots.
+
+Nothing else changes: the previous snapshot keeps every row and its
+`validation_status`; memorization, review and recitation records are not read or
+written; no evaluation is recalculated. An amount already measured stays
+measured against the snapshot recorded on it.
+
+Activating the snapshot that is already active is a no-op that reports
+`already active`.
+
+### Concurrency
+
+- **PostgreSQL:** `pg_advisory_xact_lock` serialises activations, `FOR UPDATE`
+  pins the target row, and the partial unique index on `is_active` is the final
+  guarantee if anything slips past both.
+- **SQLite (tests):** no advisory locks; writers are serialised by the database
+  and the unique index still refuses a second active row. True parallel
+  activation is not reproducible in this environment and is not claimed.
+
+### Which snapshot is active
+
+```sql
+select id, edition, source_version, imported_at
+from quran_dataset_versions
+where is_active;
+```
+
+The provider answers from that row only: it reads `is_active = true` **and**
+requires `validation_status = 'passed'`. If the active row is not passed, or
+there is none, it raises `QuranDataUnavailable` — it never falls back to another
+snapshot and never to the fixture in production (`QURAN_PROVIDER=auto` resolves
+to the database outside `local`/`testing`).
+
+### Replacing a snapshot
+
+Import the new file, review its report, then activate it. The previous snapshot
+is deactivated in the same transaction and kept intact — a rollback path that
+costs one command:
+
+```bash
+php artisan quran:activate 3   # switch to the new snapshot
+php artisan quran:activate 2   # go back
+```
+
+### When it fails
+
+The command exits `1`, prints the reason, and states that nothing changed. The
+previously active snapshot is still active; the target is still inactive. A
+refusal is always a refusal to change state, never a half-applied switch.
