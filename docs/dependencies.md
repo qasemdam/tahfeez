@@ -89,20 +89,34 @@ record, not a legal opinion.
 
 **Any future distribution of a Backend copy — self-hosted, on-premise,
 white-label, a container image handed to a customer, or a desktop bundle —
-requires a licence review before distribution, not after.** Under GPL-2.0 the
-options are:
+requires a legal review before distribution, not after.**
 
-1. **Comply.** Ship the backend's corresponding source under GPL-2.0 with the
-   distributed copy. This reaches the whole backend, not just the export module.
-2. **Replace the engine** with a non-copyleft renderer and keep the backend
-   closed. `tecnickcom/tcpdf` 6.x is LGPL-3.0-or-later and would need a spike to
-   confirm Arabic shaping with a separately licensed font; Gotenberg (MIT, in
-   front of Chromium) moves rendering to a service.
+GPL-2.0 obligations may attach to the distributed program when the distributed
+work is considered a derivative or a combined work subject to the licence. The
+scope has to be established case by case, from how the engine is linked and how
+the result is distributed. Two assumptions are equally unsound:
+
+- that the licence extends automatically to the whole backend, and
+- that it is necessarily confined to the mPDF library.
+
+The options below are recorded as directions to evaluate, not as a decision.
+None of them is adopted, and each changes what is shipped:
+
+1. **Comply.** Distribute the copy together with the corresponding source the
+   licence requires, in whatever scope the review establishes. That scope is an
+   outcome of the review — it is not assumed here to be the whole backend, nor
+   assumed to stop at the export module.
+2. **Replace the engine.** `tecnickcom/tcpdf` 6.x (LGPL-3.0-or-later) would need
+   a spike to confirm Arabic shaping with a separately licensed font; Gotenberg
+   (MIT, in front of Chromium) moves rendering to a service. Both are
+   **unadopted future options**, not a current recommendation.
 3. **Keep the engine server-side only** and expose rendering as a service that
    the distributed component calls, so no GPL code ships.
 
-Whichever path is chosen, the change is an ADR, not a silent dependency bump.
-`docs/decisions/` is where that decision belongs.
+Any choice among these is made at the time of the decision, against the licence
+and the actual version of the dependency in use then — not against the versions
+recorded in this document today. Whichever path is taken, the change is an ADR,
+not a silent dependency bump; `docs/decisions/` is where that decision belongs.
 
 ---
 
