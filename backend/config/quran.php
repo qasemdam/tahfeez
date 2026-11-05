@@ -63,6 +63,20 @@ return [
                 'lines' => 15,
             ],
         ],
+
+        /*
+        | A skipped check is not a pass. If it is listed here, a dataset that
+        | skips it is stored as `incomplete` — imported, auditable, and refused by
+        | DatabaseQuranDataProvider until the check can actually run.
+        |
+        | V-10 and V-12 are listed because quran-validation-plan.md makes them
+        | blocking; they need a checked-in golden sample this repository does not
+        | have yet (OD-029). Remove them here only as an explicit product decision.
+        */
+        'critical_checks' => [
+            'V-01', 'V-02', 'V-03', 'V-04', 'V-05', 'V-06', 'V-07', 'V-08',
+            'V-09', 'V-10', 'V-11', 'V-12', 'V-13', 'V-14', 'V-15', 'V-16', 'V-17',
+        ],
     ],
 
 ];

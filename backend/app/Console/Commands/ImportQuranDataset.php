@@ -81,9 +81,13 @@ class ImportQuranDataset extends Command
         $this->components->twoColumnDetail('Checksum (sha256)', $result->checksum);
         $this->components->twoColumnDetail('Surahs / pages / ayahs', sprintf('%d / %d / %d', $result->surahs, $result->pages, $result->ayahs));
         $this->components->twoColumnDetail('Snapshot', $result->versionId === null ? 'not created' : '#'.$result->versionId);
-        $this->components->twoColumnDetail('Status', $result->passed ? 'passed (inactive)' : 'failed');
+        $this->components->twoColumnDetail('Status', match ($result->status) {
+            ValidationReport::PASSED => '<fg=green>passed (inactive)</>',
+            ValidationReport::INCOMPLETE => '<fg=yellow>incomplete (inactive, not activatable)</>',
+            default => '<fg=red>failed</>',
+        });
 
-        if (! $result->passed) {
+        if ($result->status === ValidationReport::FAILED) {
             $this->newLine();
             $this->components->error($result->message);
             $this->line('  Failures: '.implode(', ', array_column($result->report->failures(), 'id')));
@@ -96,6 +100,13 @@ class ImportQuranDataset extends Command
         if ($skipped !== []) {
             $this->newLine();
             $this->components->warn('Skipped checks: '.implode(', ', $skipped).' — see docs/quran-import.md.');
+        }
+
+        if ($result->status === ValidationReport::INCOMPLETE) {
+            $this->newLine();
+            $this->components->warn(
+                'A critical check could not run, so this snapshot is stored but cannot be activated.',
+            );
         }
 
         $this->newLine();

@@ -3,6 +3,7 @@
 namespace App\Domain\Quran\Import;
 
 use App\Domain\Quran\Exceptions\QuranImportFailed;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -14,8 +15,8 @@ use Throwable;
  *   hash → duplicate guard → parse → re-hash → validate → write
  *
  * Validation happens before any child row is written, so a broken file never
- * leaves half a dataset behind. The snapshot row itself is written last for a
- * passing dataset (inside the transaction) and on its own for a failing one, so
+ * leaves half a dataset behind. The snapshot row itself is written last for an
+ * accepted dataset (inside the transaction) and on its own for a failing one, so
  * a failed attempt is visible without ever being usable — the provider only
  * reads `validation_status = passed`.
  *
@@ -24,6 +25,12 @@ use Throwable;
 final class QuranImporter
 {
     private const CHUNK = 500;
+
+    /**
+     * Statuses whose checksum is claimed by an existing snapshot. Matches the
+     * partial unique index: `failed` attempts stay retryable.
+     */
+    private const CLAIMED = [ValidationReport::PASSED, ValidationReport::INCOMPLETE];
 
     public function __construct(private DatasetValidator $validator) {}
 
@@ -35,17 +42,10 @@ final class QuranImporter
 
         $checksum = $this->hash($path);
 
-        $duplicate = DB::table('quran_dataset_versions')
-            ->where('checksum_sha256', $checksum)
-            ->where('validation_status', 'passed')
-            ->first(['id', 'imported_at']);
+        $duplicate = $this->claimedBy($checksum);
 
         if ($duplicate !== null) {
-            throw new QuranImportFailed(sprintf(
-                'This file was already imported as version %d (checksum %s). Nothing was written.',
-                (int) $duplicate->id,
-                $checksum,
-            ));
+            throw $this->alreadyImported($checksum, $duplicate);
         }
 
         $payload = $this->source($options->format)->read($path);
@@ -57,16 +57,21 @@ final class QuranImporter
             ? ['id' => 'V-11', 'label' => 'checksum', 'status' => ValidationReport::PASSED, 'detail' => $checksum]
             : ['id' => 'V-11', 'label' => 'checksum', 'status' => ValidationReport::FAILED, 'detail' => 'the file changed while it was being read'];
 
-        $report = ValidationReport::fromChecks([
-            $checksumCheck,
-            ...$this->validator->validate($payload)->checks,
-        ]);
+        $validation = $this->validator->validate($payload);
 
-        if (! $report->passed()) {
+        $report = ValidationReport::fromChecks(
+            [$checksumCheck, ...$validation->checks],
+            $validation->stats,
+        );
+
+        $status = $report->status();
+
+        if ($status === ValidationReport::FAILED) {
             $versionId = $this->recordFailure($payload, $options, $checksum, $report);
 
             return new ImportResult(
                 passed: false,
+                status: $status,
                 report: $report,
                 checksum: $checksum,
                 versionId: $versionId,
@@ -77,17 +82,20 @@ final class QuranImporter
             );
         }
 
-        $versionId = $this->persist($payload, $options, $checksum, $report);
+        $versionId = $this->persist($payload, $options, $checksum, $report, $status);
 
         return new ImportResult(
-            passed: true,
+            passed: $status === ValidationReport::PASSED,
+            status: $status,
             report: $report,
             checksum: $checksum,
             versionId: $versionId,
             surahs: $payload->surahCount(),
             pages: $payload->pageCount(),
             ayahs: $payload->ayahCount(),
-            message: 'Imported as an inactive snapshot. Activate it explicitly when it has been reviewed.',
+            message: $status === ValidationReport::PASSED
+                ? 'Imported as an inactive snapshot. Activate it explicitly when it has been reviewed.'
+                : 'Imported as an inactive snapshot, but a critical check could not run. It cannot be activated until that check passes.',
         );
     }
 
@@ -100,6 +108,24 @@ final class QuranImporter
         }
 
         return $hash;
+    }
+
+    private function claimedBy(string $checksum): ?object
+    {
+        return DB::table('quran_dataset_versions')
+            ->where('checksum_sha256', $checksum)
+            ->whereIn('validation_status', self::CLAIMED)
+            ->first(['id', 'validation_status']);
+    }
+
+    private function alreadyImported(string $checksum, object $existing): QuranImportFailed
+    {
+        return new QuranImportFailed(sprintf(
+            'This file was already imported as version %d (status: %s, checksum %s). Nothing was written.',
+            (int) $existing->id,
+            (string) $existing->validation_status,
+            $checksum,
+        ));
     }
 
     private function source(string $format): QuranSource
@@ -124,9 +150,10 @@ final class QuranImporter
         ImportOptions $options,
         string $checksum,
         ValidationReport $report,
+        string $status,
     ): int {
         try {
-            return DB::transaction(function () use ($payload, $options, $checksum, $report): int {
+            return DB::transaction(function () use ($payload, $options, $checksum, $report, $status): int {
                 $versionId = $this->insertVersion($payload, $options, $checksum, $report, 'pending');
 
                 $this->insertChildren($versionId, $payload);
@@ -134,19 +161,23 @@ final class QuranImporter
                 DB::table('quran_dataset_versions')
                     ->where('id', $versionId)
                     ->update([
-                        'validation_status' => 'passed',
+                        'validation_status' => $status,
                         'validation_report' => json_encode($report->toArray(), JSON_UNESCAPED_UNICODE),
                         'updated_at' => now(),
                     ]);
 
                 return $versionId;
             });
+        } catch (UniqueConstraintViolationException $exception) {
+            // The partial unique index on the checksum fired: another import of
+            // the same bytes won the race after our own guard had passed.
+            $existing = $this->claimedBy($checksum);
+
+            throw $existing === null
+                ? $this->alreadyImported($checksum, (object) ['id' => 0, 'validation_status' => 'unknown'])
+                : $this->alreadyImported($checksum, $existing);
         } catch (Throwable $exception) {
-            throw new QuranImportFailed(
-                'The dataset could not be stored; nothing was written. '.$exception->getMessage(),
-                0,
-                $exception,
-            );
+            throw new QuranImportFailed(StorageFailure::describe($exception), 0, $exception);
         }
     }
 
@@ -156,7 +187,7 @@ final class QuranImporter
         string $checksum,
         ValidationReport $report,
     ): int {
-        return $this->insertVersion($payload, $options, $checksum, $report, 'failed');
+        return $this->insertVersion($payload, $options, $checksum, $report, ValidationReport::FAILED);
     }
 
     private function insertVersion(

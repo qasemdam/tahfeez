@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Quran;
 
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\PendingCommand;
@@ -81,7 +82,9 @@ class QuranImportCommandTest extends TestCase
         $version = DB::table('quran_dataset_versions')->first();
 
         $this->assertNotNull($version);
-        $this->assertSame('passed', $version->validation_status);
+        // Structurally sound, but V-10/V-12 (golden sample) cannot run, so the
+        // snapshot is stored as incomplete and the provider will not serve it.
+        $this->assertSame('incomplete', $version->validation_status);
         $this->assertFalse((bool) $version->is_active, 'An import must never activate its own snapshot.');
         $this->assertSame(hash_file('sha256', $path), $version->checksum_sha256);
         $this->assertSame('madinah_1405h_hafs_uthmani', $version->edition);
@@ -99,7 +102,8 @@ class QuranImportCommandTest extends TestCase
 
         $report = json_decode((string) DB::table('quran_dataset_versions')->value('validation_report'), true);
 
-        $this->assertTrue($report['passed']);
+        $this->assertFalse($report['passed']);
+        $this->assertSame('incomplete', $report['status']);
 
         $ids = array_column($report['checks'], 'id');
 
@@ -257,7 +261,7 @@ class QuranImportCommandTest extends TestCase
         $after = DB::table('quran_dataset_versions')->where('id', $version->id)->first();
 
         $this->assertSame($before['checksum'], $after->checksum_sha256);
-        $this->assertSame('passed', $after->validation_status);
+        $this->assertSame('incomplete', $after->validation_status);
         $this->assertSame($before['surahs'], DB::table('quran_surahs')->where('dataset_version_id', $version->id)->count());
         $this->assertSame($before['pages'], DB::table('quran_pages')->where('dataset_version_id', $version->id)->count());
         $this->assertSame($before['ayahs'], DB::table('quran_ayahs')->where('dataset_version_id', $version->id)->count());
@@ -294,6 +298,144 @@ class QuranImportCommandTest extends TestCase
         foreach ($versions as $version) {
             $this->assertSame(6236, DB::table('quran_ayahs')->where('dataset_version_id', $version->id)->count());
         }
+    }
+
+    public function test_an_ayah_spanning_the_whole_mushaf_is_rejected(): void
+    {
+        $dataset = SyntheticDataset::make();
+        // The exact corruption the audit reproduced: ayah 1 starts at 1:1 and
+        // claims to end at 604:8, which measure() would turn into 603 pages.
+        $dataset['ayahs'][0]['page_end'] = 604;
+        $dataset['ayahs'][0]['line_end'] = 8;
+
+        $this->import($this->file($dataset))->assertExitCode(1);
+
+        $this->assertFailedCheck('V-16');
+        $this->assertSame(0, DB::table('quran_dataset_versions')->where('validation_status', '!=', 'failed')->count());
+    }
+
+    public function test_overlapping_ayah_ranges_are_rejected(): void
+    {
+        $dataset = SyntheticDataset::make();
+        // Ayah 1 runs to line 5 of page 1; ayah 2 starts at line 2, inside it.
+        // (Sharing a line is legal — a mushaf line carries several ayahs — but
+        // starting before the previous ayah ends is not.)
+        $dataset['ayahs'][0]['line_end'] = 5;
+        $dataset['ayahs'][1]['page_start'] = 1;
+        $dataset['ayahs'][1]['line_start'] = 2;
+
+        $this->import($this->file($dataset))->assertExitCode(1);
+
+        $this->assertFailedCheck('V-16');
+    }
+
+    public function test_a_surah_page_range_that_ends_before_it_starts_is_rejected(): void
+    {
+        $dataset = SyntheticDataset::make();
+        $dataset['surahs'][113]['page_end'] = 1;
+
+        $this->import($this->file($dataset))->assertExitCode(1);
+
+        $this->assertFailedCheck('V-17');
+    }
+
+    public function test_a_surah_with_no_ayahs_is_rejected(): void
+    {
+        $dataset = SyntheticDataset::make();
+        $dataset['surahs'][0]['ayah_count'] = 0;
+
+        $this->import($this->file($dataset))->assertExitCode(1);
+
+        $this->assertFailedCheck('V-14');
+    }
+
+    public function test_a_negative_ayah_count_is_rejected(): void
+    {
+        $dataset = SyntheticDataset::make();
+        $dataset['surahs'][0]['ayah_count'] = -5;
+
+        $this->import($this->file($dataset))->assertExitCode(1);
+
+        $this->assertFailedCheck('V-14');
+    }
+
+    public function test_the_report_carries_stats_derived_from_the_dataset(): void
+    {
+        $this->import($this->file(SyntheticDataset::make()))->assertExitCode(0);
+
+        $report = json_decode((string) DB::table('quran_dataset_versions')->value('validation_report'), true);
+        $stats = $report['stats'];
+
+        $this->assertSame(114, $stats['surahs']);
+        $this->assertSame(604, $stats['pages']);
+        $this->assertSame(6236, $stats['ayahs']);
+        $this->assertSame(0, $stats['pages_without_ayahs']);
+        $this->assertSame(1, $stats['max_ayah_page_span']);
+        $this->assertSame([8 => 2, 15 => 602], $stats['line_height_distribution']);
+    }
+
+    public function test_a_dataset_reaches_passed_when_no_critical_check_is_skipped(): void
+    {
+        // The golden-sample checks are skipped because no fixture exists; when
+        // they are not treated as critical, the same dataset is activatable.
+        config(['quran.import.critical_checks' => [
+            'V-01', 'V-02', 'V-03', 'V-04', 'V-05', 'V-06', 'V-07', 'V-08',
+            'V-09', 'V-11', 'V-13', 'V-14', 'V-15', 'V-16', 'V-17',
+        ]]);
+
+        $this->import($this->file(SyntheticDataset::make()))->assertExitCode(0);
+
+        $this->assertSame('passed', DB::table('quran_dataset_versions')->value('validation_status'));
+    }
+
+    public function test_a_checksum_cannot_belong_to_two_accepted_snapshots(): void
+    {
+        $this->import($this->file(SyntheticDataset::make()))->assertExitCode(0);
+
+        $checksum = (string) DB::table('quran_dataset_versions')->value('checksum_sha256');
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        DB::table('quran_dataset_versions')->insert([
+            'source' => 'second',
+            'source_url' => '',
+            'source_version' => 'second',
+            'edition' => 'madinah_1405h_hafs_uthmani',
+            'source_format' => 'json',
+            'downloaded_at' => now(),
+            'imported_at' => now(),
+            'checksum_sha256' => $checksum,
+            'validation_status' => 'passed',
+            'validation_report' => json_encode(['passed' => true, 'checks' => []]),
+            'is_active' => false,
+            'notes' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function test_failed_attempts_may_share_a_checksum(): void
+    {
+        foreach ([1, 2] as $attempt) {
+            DB::table('quran_dataset_versions')->insert([
+                'source' => 'retry',
+                'source_url' => '',
+                'source_version' => 'retry-'.$attempt,
+                'edition' => 'madinah_1405h_hafs_uthmani',
+                'source_format' => 'json',
+                'downloaded_at' => now(),
+                'imported_at' => now(),
+                'checksum_sha256' => str_repeat('a', 64),
+                'validation_status' => 'failed',
+                'validation_report' => json_encode(['passed' => false, 'checks' => []]),
+                'is_active' => false,
+                'notes' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->assertSame(2, DB::table('quran_dataset_versions')->where('validation_status', 'failed')->count());
     }
 
     private function assertFailedCheck(string $id): void

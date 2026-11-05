@@ -52,7 +52,9 @@ final class DatasetValidator
             $this->skipped('V-12', 'golden boundary fixtures', 'no golden fixture is checked in (OD-029)'),
             $this->requiredFields($surahs, $pages, $ayahs),
             $this->editionPageProfile($payload->edition, $pages),
-        ]);
+            $this->rangeOrder($ayahs),
+            $this->surahPageRange($surahs, $ayahsBySurah),
+        ], $this->stats($surahs, $pages, $ayahs));
     }
 
     /**
@@ -438,6 +440,24 @@ final class DatasetValidator
                     return $this->failed('V-14', 'required fields', sprintf('surah row is missing "%s"', $field));
                 }
             }
+
+            // A surah with no ayahs cannot be located or measured.
+            if ((int) $surah['ayah_count'] < 1) {
+                return $this->failed('V-14', 'required fields', sprintf(
+                    'surah %d declares %d ayahs',
+                    (int) $surah['id'],
+                    (int) $surah['ayah_count'],
+                ));
+            }
+
+            if ((int) $surah['page_start'] < 1 || (int) $surah['page_end'] < 1) {
+                return $this->failed('V-14', 'required fields', sprintf(
+                    'surah %d declares page range %d…%d',
+                    (int) $surah['id'],
+                    (int) $surah['page_start'],
+                    (int) $surah['page_end'],
+                ));
+            }
         }
 
         foreach ($pages as $page) {
@@ -445,6 +465,13 @@ final class DatasetValidator
                 if (! isset($page[$field])) {
                     return $this->failed('V-14', 'required fields', sprintf('page row is missing "%s"', $field));
                 }
+            }
+
+            if ((int) $page['page_number'] < 1) {
+                return $this->failed('V-14', 'required fields', sprintf(
+                    'page row declares page number %d',
+                    (int) $page['page_number'],
+                ));
             }
 
             if ((int) $page['lines_count'] < 1) {
@@ -507,6 +534,166 @@ final class DatasetValidator
             $shortLines,
             $lines,
         ));
+    }
+
+    /**
+     * Ayah ranges must be ordered and must not overlap.
+     *
+     * This is the invariant that makes a measurement meaningful: an ayah starts
+     * where the previous one ended (or later — several short ayahs share a line),
+     * never before. Without it a single row can claim the whole mushaf: an ayah
+     * starting at 1:1 and "ending" at 604:8 leaves `measure()` summing 603 pages.
+     *
+     * No maximum span is imposed here. A fixed "one page" or "two pages" ceiling
+     * would be a guess about the print, not a fact about the data.
+     *
+     * @param  Collection<int, array<string, mixed>>  $ayahs
+     * @return array{id: string, label: string, status: string, detail: string}
+     */
+    private function rangeOrder(Collection $ayahs): array
+    {
+        $previousEnd = null;
+        $previousId = 0;
+
+        foreach ($ayahs->sortBy('id') as $ayah) {
+            $id = (int) $ayah['id'];
+            $start = [(int) $ayah['page_start'], (int) $ayah['line_start']];
+            $end = [(int) $ayah['page_end'], (int) $ayah['line_end']];
+
+            if ($this->comparePosition($end, $start) < 0) {
+                return $this->failed('V-16', 'range order', sprintf(
+                    'ayah %d ends at %d:%d before it starts at %d:%d',
+                    $id,
+                    $end[0],
+                    $end[1],
+                    $start[0],
+                    $start[1],
+                ));
+            }
+
+            if ($previousEnd !== null && $this->comparePosition($start, $previousEnd) < 0) {
+                return $this->failed('V-16', 'range order', sprintf(
+                    'ayah %d starts at %d:%d before ayah %d ends at %d:%d — the ranges overlap or run backwards',
+                    $id,
+                    $start[0],
+                    $start[1],
+                    $previousId,
+                    $previousEnd[0],
+                    $previousEnd[1],
+                ));
+            }
+
+            $previousEnd = $end;
+            $previousId = $id;
+        }
+
+        return $this->passed('V-16', 'range order', 'ayah ranges are ordered and do not overlap');
+    }
+
+    /**
+     * A surah's declared page range must contain its own ayahs.
+     *
+     * Exact equality is deliberately not asserted: whether a surah's first page
+     * is the page of its first ayah or a preceding header page is a convention of
+     * the source, which is unverified (OD-029). Containment is provable from the
+     * dataset itself, and it catches a range that ends before its own content.
+     *
+     * @param  Collection<int, array<string, mixed>>  $surahs
+     * @param  Collection<int, Collection<int, array<string, mixed>>>  $ayahsBySurah
+     * @return array{id: string, label: string, status: string, detail: string}
+     */
+    private function surahPageRange(Collection $surahs, Collection $ayahsBySurah): array
+    {
+        foreach ($surahs as $surah) {
+            $id = (int) $surah['id'];
+            $start = (int) $surah['page_start'];
+            $end = (int) $surah['page_end'];
+
+            if ($end < $start) {
+                return $this->failed('V-17', 'surah page range', sprintf(
+                    'surah %d ends on page %d before it starts on page %d',
+                    $id,
+                    $end,
+                    $start,
+                ));
+            }
+
+            $rows = $ayahsBySurah->get($id);
+
+            if ($rows === null || $rows->isEmpty()) {
+                continue;
+            }
+
+            $first = (int) $rows->min('page_start');
+            $last = (int) $rows->max('page_end');
+
+            if ($start > $first) {
+                return $this->failed('V-17', 'surah page range', sprintf(
+                    'surah %d starts on page %d, after its first ayah on page %d',
+                    $id,
+                    $start,
+                    $first,
+                ));
+            }
+
+            if ($end < $last) {
+                return $this->failed('V-17', 'surah page range', sprintf(
+                    'surah %d ends on page %d, before its last ayah on page %d',
+                    $id,
+                    $end,
+                    $last,
+                ));
+            }
+        }
+
+        return $this->passed('V-17', 'surah page range', 'every surah range contains its own ayahs');
+    }
+
+    /**
+     * Numbers derived from the dataset itself — no reference figures, so they can
+     * be recorded without asserting anything about the print.
+     *
+     * `pages_without_ayahs` is reported, never enforced: whether every page of
+     * the edition carries ayahs is a property of the source, not something this
+     * validator can prove.
+     *
+     * @param  Collection<int, array<string, mixed>>  $surahs
+     * @param  Collection<int, array<string, mixed>>  $pages
+     * @param  Collection<int, array<string, mixed>>  $ayahs
+     * @return array<string, mixed>
+     */
+    private function stats(Collection $surahs, Collection $pages, Collection $ayahs): array
+    {
+        $perPage = $ayahs->countBy(static fn (array $ayah): int => (int) $ayah['page_start']);
+        $heights = $pages->countBy(static fn (array $page): int => (int) $page['lines_count'])->sortKeys();
+
+        $maxSpan = 0;
+
+        foreach ($ayahs as $ayah) {
+            $maxSpan = max($maxSpan, (int) $ayah['page_end'] - (int) $ayah['page_start'] + 1);
+        }
+
+        return [
+            'surahs' => $surahs->count(),
+            'pages' => $pages->count(),
+            'ayahs' => $ayahs->count(),
+            'pages_without_ayahs' => max($pages->count() - $perPage->count(), 0),
+            'ayahs_per_page' => [
+                'min' => $perPage->isEmpty() ? 0 : (int) $perPage->min(),
+                'max' => $perPage->isEmpty() ? 0 : (int) $perPage->max(),
+            ],
+            'max_ayah_page_span' => $maxSpan,
+            'line_height_distribution' => $heights->all(),
+        ];
+    }
+
+    /**
+     * @param  array{0: int, 1: int}  $a
+     * @param  array{0: int, 1: int}  $b
+     */
+    private function comparePosition(array $a, array $b): int
+    {
+        return $a[0] === $b[0] ? $a[1] <=> $b[1] : $a[0] <=> $b[0];
     }
 
     /**
