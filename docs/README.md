@@ -41,6 +41,7 @@ For the state of the project rather than the specification, read
 | 18 | [`roadmap.md`](roadmap.md) | 10 phases, branches, exit criteria, **§0.2 current state** |
 | 19 | [`open-decisions.md`](open-decisions.md) | **43 decisions — 15 resolved, 1 partial, 27 open** |
 | 20 | [`decisions/`](decisions/) | 9 ADRs for the non-obvious choices |
+| 21 | [`dependencies.md`](dependencies.md) | Third-party licences, the mPDF copyleft and the SaaS-only assumption behind it |
 
 Implementation notes for the delivered slices:
 [`phase-1-foundation.md`](phase-1-foundation.md) · [`phase-1-groups.md`](phase-1-groups.md) ·

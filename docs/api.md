@@ -184,16 +184,22 @@ Publishing an invalid template (weights ≠ 100) returns `422` with `errors.weig
 | GET | `/dashboard` | `?month=YYYY-MM`, plus `group_id` — implemented, see §7.3 |
 | GET | `/reports/weekly` | `?week_key=` or `?week_start_date=`, plus `group_id` / `student_id` — implemented, see §7.1 |
 | GET | `/reports/monthly` | `?month=YYYY-MM`, plus `group_id` / `student_id` — implemented, see §7.2 |
+| GET | `/dashboard/export` | same filters + `format` — implemented, see §7.4 |
+| GET | `/reports/weekly/export` | same filters + `format` — implemented, see §7.4 |
+| GET | `/reports/monthly/export` | same filters + `format` — implemented, see §7.4 |
 | GET | `/reports/students/{id}` | Student report |
 | GET | `/reports/attendance` | `?from=&to=&student_id=` |
 | GET | `/reports/memorization` | `?from=&to=` |
 | GET | `/reports/review` | |
 | GET | `/reports/recitation` | |
 | GET | `/reports/rankings` | `?week=&scope=` |
-| POST | `/exports` | `{type, format, params}` → `202` + job id |
-| GET | `/exports/{id}` | Status + signed download URL |
+| POST | `/exports` | `{type, format, params}` → `202` + job id — not implemented |
+| GET | `/exports/{id}` | Status + signed download URL — not implemented |
 
-Exports are asynchronous, scoped to the requester's permissions, and expire (BR-RPT-03).
+The three `/export` endpoints are synchronous and return the file itself; they
+cover a single week or month, which is a bounded row count. The asynchronous
+job endpoints (`POST /exports`, `GET /exports/{id}`) that BR-RPT-03 reserves for
+large ranges are **not** implemented in this phase — see §7.4 for the limits.
 
 ### 7.1 Weekly report
 
@@ -418,3 +424,205 @@ Scope and meaning:
   neither, so the dashboard reports raw counts only.
 - The dashboard never writes, never creates an evaluation and never runs the
   engine.
+
+### 7.4 Report exports — PDF, XLSX and print HTML
+
+Three endpoints export a report that already exists as JSON. Each one takes
+**exactly** the filters of its report plus a `format`; the period rules,
+validation messages and scope are inherited, not restated.
+
+| Method | Path | Permission | Report |
+|---|---|---|---|
+| GET | `/reports/weekly/export` | `reports.export` | §7.1 |
+| GET | `/reports/monthly/export` | `reports.export` | §7.2 |
+| GET | `/dashboard/export` | `reports.export` | §7.3 |
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `format` | `pdf` \| `xlsx` \| `html` | optional, defaults to `html` (the print view) |
+| *(report filters)* | | identical to the report being exported: `week_key` / `week_start_date` / `month`, `group_id`, `student_id` |
+
+An unsupported `format` is `422` with `errors.format`. A missing `week_key`,
+both week parameters, or a malformed `month` fail exactly as in §7.1–§7.3.
+
+A report that is too large for a synchronous export is also `422`, but with a
+different body — it is a capacity limit, not a bad request:
+
+```json
+{
+  "message": "التقرير أكبر من حد التصدير المتزامن (312 صفًا، الحد 200). ضيّق النطاق عبر group_id أو student_id.",
+  "error": "export_too_large",
+  "limits": { "reason": "rows", "actual": 312, "limit": 200 }
+}
+```
+
+`limits.reason` is `rows` when the row ceiling was hit, or `html_bytes` when a
+single PDF document exceeded the engine's HTML budget. Both are checked before
+the file is built, so the request fails fast instead of exhausting the worker.
+See §7.4.1 for the numbers behind the ceiling.
+
+#### Response
+
+| `format` | `Content-Type` | `Content-Disposition` |
+|---|---|---|
+| `pdf` | `application/pdf` | `attachment` |
+| `xlsx` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | `attachment` |
+| `html` | `text/html; charset=UTF-8` | `inline` |
+
+File names are ASCII (no Arabic in a header value) and carry the period:
+
+| Endpoint | File name |
+|---|---|
+| weekly | `tahfeez-weekly-2026-10-24_2026-10-30.pdf` |
+| monthly | `tahfeez-monthly-2026-10.pdf` |
+| dashboard | `tahfeez-dashboard-2026-10.pdf` |
+
+The extension follows `format` (`.pdf`, `.xlsx`, `.html`).
+
+```bash
+# Weekly report as PDF
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API/v1/reports/weekly/export?week_key=2026-10-26&format=pdf" -o weekly.pdf
+
+# Monthly report for one group as Excel
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API/v1/reports/monthly/export?month=2026-10&group_id=12&format=xlsx" -o monthly.xlsx
+
+# Print view (default format), ready for the browser's print dialog
+curl -H "Authorization: Bearer $TOKEN" \
+  "$API/v1/reports/weekly/export?week_start_date=2026-10-24" -o weekly.html
+```
+
+#### What the files contain
+
+The figures are produced by the same query objects as §7.1–§7.3, so an export
+cannot disagree with the report it came from. Nothing is recomputed.
+
+The weekly and monthly exports carry three tables, one per activity type:
+
+1. **الحضور والحفظ والمراجعة** — attendance counts, `required_pages`,
+   `actual_pages`, achievement percentage, memorization sessions, review pages
+   and review sessions.
+2. **التسميع** — recitation sessions, the three error counters and the stored
+   grade counts.
+3. **التقييم الأسبوعي (لقطة محفوظة)** — the stored evaluation: weighted score,
+   its achievement percentage, completeness and status. The monthly export
+   replaces this table with the count of weekly evaluations per student.
+
+The dashboard export is a set of label/value tables (الملخص العام, الحضور,
+النشاط والتقييم) — no per-student rows are rebuilt.
+
+Rules that hold in every format:
+
+- **Achievement percentage is uncapped.** `2.5000` pages against a requirement
+  of `1.00` is exported as `250.00%`, never `100%`.
+- **The weighted score is never mixed with achievement.** It is a 0–100 index
+  and lives in its own table, in its own column, without a percent sign.
+- **No aggregate achievement is added to a totals row.** Averaging uncapped
+  ratios would be a new figure that no business rule defines, so that cell is
+  left empty.
+- **A missing value is `—`, never `0`.** A monthly achievement whose requirement
+  sum is zero is exported as `—`.
+- **Memorization, review and recitation stay separate.** No blended total.
+- **Decimals keep their source scale.** Pages are exported at 4 dp and required
+  pages at 2 dp; the XLSX cell is numeric with an explicit number format
+  (`0.0000`, `0.00`, `0.00"%"`), so `1.5000` never becomes `1.5`.
+
+#### PDF and Arabic
+
+The PDF is produced by mPDF from the same Blade view the print page uses. The
+document is written RTL, uses a font that covers Arabic, and shapes the script
+contextually. Every numeric run (dates, amounts, percentages) is wrapped in
+`dir="ltr"` so the bidi algorithm cannot reorder it: `2026-10-24` is drawn
+`2026-10-24`, not `24-10-2026`. Weekly and monthly PDFs are A4 landscape
+(thirteen columns do not fit a portrait page); the dashboard is A4 portrait.
+
+The print view hides its toolbar under `@media print`, sets `@page` to A4 and
+repeats table headers across pages. `@page` is emitted for the browser only:
+mPDF mis-paginates when it sees an `@page` size and would break the document
+into one page per block.
+
+**The face is pinned to DejaVu Sans.** mPDF's `autoLangToFont` would otherwise
+switch Arabic runs to *XB Riyaz*, a font bundled with the library whose own name
+table declares the GNU General Public License — not a licence this project can
+rely on for embedding. DejaVu ships with the library under the Bitstream Vera
+licence, which explicitly permits embedding and redistribution, and it carries
+the Arabic GSUB tables mPDF needs. `autoScriptToLang` stays enabled: script
+detection still drives shaping, it just no longer swaps the font. The embedded
+subset (`MPDFAA+DejaVuSans`, `Type0`/`Identity-H`, with a `ToUnicode` map) is
+produced from `vendor/mpdf/mpdf/ttfonts`, so a clean deployment that ran
+`composer install` needs nothing from the host operating system.
+
+The engine is GPL-2.0-only and its adoption is tied to the centrally hosted
+model; any future distribution of the backend needs a licence review first. The
+record, the alternatives and the review triggers are in
+[`dependencies.md`](dependencies.md) §3.
+
+#### XLSX layout
+
+A `ملخص` sheet holds the title, the period and the report totals, then one
+worksheet per table (all right-to-left, header row frozen, totals row bold).
+Sheet names are the Arabic table headings.
+
+#### Permissions and scope
+
+- `reports.export` — a separate grant from `reports.view`. A manager holds it
+  through `*`; a teacher holds it only when the manager enables it
+  (`permissions.md` §3). Without it the endpoint is `403`.
+- Scope is structural, not a second implementation: the query objects resolve
+  the actor's visible groups, so a teacher's file only contains their own
+  students, and a foreign `group_id` or `student_id` yields an empty report
+  rather than another center's rows.
+
+#### Limits
+
+- Synchronous only: a single week or month per request. There is no job id, no
+  signed download URL and no TTL — BR-RPT-03's asynchronous path is not built.
+- Only the weekly report, the monthly report and the dashboard are exportable.
+  The remaining reports in the §7 table have no endpoint yet.
+- Totals sum amounts and counts. They never sum scores, percentages or grades.
+
+#### 7.4.1 Synchronous export ceiling
+
+An export is built in memory, inside the request. Past a certain size that stops
+being safe — mPDF refuses an HTML string larger than `pcre.backtrack_limit`, and
+every format pays for the whole document in RAM — so the ceiling is enforced
+before the file is generated and reported as `422 export_too_large`.
+
+**The ceiling is 200 rows** (the longest table in the export, i.e. the number of
+students). It is measured, not guessed:
+
+| Rows | PDF | XLSX | HTML | Peak RAM (PDF) | HTML size |
+|---|---|---|---|---|---|
+| 1 | 0.4 s | 0.2 s | 0.05 s | 42 MB | 15 KB |
+| 49 | 1.6 s | 1.0 s | 0.12 s | 50 MB | 183 KB |
+| **200 (limit)** | **6.4 s** | **2.7 s** | **0.24 s** | **74 MB** | **712 KB** |
+| 250 | rejected in 0.23 s | 0.25 s | 0.29 s | 28 MB | — |
+| 300 | rejected in 0.34 s | 0.38 s | 0.35 s | 30 MB | — |
+| 500 | rejected in 0.50 s | 0.54 s | 0.45 s | 32 MB | — |
+| 1000 | rejected in 0.86 s | 1.0 s | 0.92 s | 42 MB | — |
+
+Why 200:
+
+- **The engine's hard limit.** `pcre.backtrack_limit` defaults to 1,000,000
+  bytes of HTML; the weekly report reaches it at ~276 rows. At 200 the document
+  is 712 KB — 71% of the budget, leaving room for longer names.
+- **Memory.** 74 MB peak fits a 128 MB `memory_limit`, the common shared-host
+  default. Without the ceiling the same export needs 132 MB at 500 rows and
+  226 MB at 1000, and dies on a 128 MB worker.
+- **Time.** ~6 s is the worst case a synchronous download should spend. The
+  async path (BR-RPT-03) is what removes the ceiling, not a larger number here.
+
+Rejections are cheap: the guard runs after the sixteen report queries and
+before any rendering, so a 1000-row request costs under a second and never
+allocates the document.
+
+Both knobs live in `config/exports.php`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `max_rows` (`EXPORT_MAX_ROWS`) | `200` | rows per export, all formats |
+| `pdf_html_budget_ratio` (`EXPORT_PDF_HTML_BUDGET_RATIO`) | `0.8` | share of `pcre.backtrack_limit` one PDF may use |
+
+Raise `max_rows` only together with `memory_limit`; the PDF budget scales with
+the host's pcre limit automatically, so it never needs raising.
