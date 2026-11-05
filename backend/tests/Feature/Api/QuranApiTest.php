@@ -53,13 +53,14 @@ class QuranApiTest extends TestCase
             'downloaded_at' => now(),
             'imported_at' => now(),
             'checksum_sha256' => str_repeat('d', 64),
-            'validation_status' => $status,
+            'validation_status' => 'pending',
             'validation_report' => json_encode(['passed' => $status === 'passed', 'status' => $status, 'checks' => [], 'stats' => []]),
             'is_active' => $overrides['is_active'] ?? false,
             'notes' => null,
             'created_at' => now(),
             'updated_at' => now(),
             ...$overrides,
+            'validation_status' => 'pending',
         ]);
 
         foreach ($surahs as $surah) {
@@ -73,6 +74,13 @@ class QuranApiTest extends TestCase
                 'page_end' => $surah['page_end'],
             ]);
         }
+
+        // The database guard refuses children in an accepted snapshot, so the
+        // version is created pending and flipped afterwards — the import order.
+        DB::table('quran_dataset_versions')->where('id', $id)->update([
+            'validation_status' => $status,
+            'updated_at' => now(),
+        ]);
 
         return $id;
     }

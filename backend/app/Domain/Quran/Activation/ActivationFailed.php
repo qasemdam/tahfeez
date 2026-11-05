@@ -31,6 +31,25 @@ final class ActivationFailed extends RuntimeException
         );
     }
 
+    public static function archived(int $versionId): self
+    {
+        return new self("Quran dataset version {$versionId} is archived and cannot be activated.");
+    }
+
+    public static function digestMissing(int $versionId): self
+    {
+        return new self(
+            "Quran dataset version {$versionId} has no content digest, so its rows cannot be verified against the import.",
+        );
+    }
+
+    public static function digestMismatch(int $versionId): self
+    {
+        return new self(
+            "Quran dataset version {$versionId} does not match its content digest: the stored rows are not the rows that were validated.",
+        );
+    }
+
     /**
      * @param  array{surahs: int, pages: int, ayahs: int, orphans: int}  $counts
      * @param  array{surahs: int, pages: int, ayahs: int}  $expected

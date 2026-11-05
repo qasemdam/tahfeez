@@ -36,13 +36,24 @@ class DatabaseProviderContractTest extends TestCase
             'downloaded_at' => now(),
             'imported_at' => now(),
             'checksum_sha256' => str_repeat('b', 64),
-            'validation_status' => 'passed',
+            'validation_status' => 'pending',
             'validation_report' => json_encode(['checks' => []]),
             'is_active' => true,
             'notes' => 'Synthetic coordinates for tests; no Quran text.',
             'created_at' => now(),
             'updated_at' => now(),
             ...$overrides,
+            // Children cannot be written into an accepted snapshot, so the
+            // version stays pending until finalise() flips it.
+            'validation_status' => 'pending',
+        ]);
+    }
+
+    private function finalise(int $versionId, string $status = 'passed'): void
+    {
+        DB::table('quran_dataset_versions')->where('id', $versionId)->update([
+            'validation_status' => $status,
+            'updated_at' => now(),
         ]);
     }
 
@@ -124,6 +135,7 @@ class DatabaseProviderContractTest extends TestCase
         $this->seedSurahs($versionId);
         $this->seedPages($versionId, $firstPageLines);
         $this->seedAyahs($versionId);
+        $this->finalise($versionId);
 
         return $versionId;
     }
@@ -151,8 +163,11 @@ class DatabaseProviderContractTest extends TestCase
 
     public function test_it_refuses_an_active_dataset_that_failed_validation(): void
     {
-        $this->seedDataset();
-        DB::table('quran_dataset_versions')->update(['validation_status' => 'failed']);
+        $versionId = $this->version();
+        $this->seedSurahs($versionId);
+        $this->seedPages($versionId);
+        $this->seedAyahs($versionId);
+        $this->finalise($versionId, 'failed');
 
         $this->expectException(QuranDataUnavailable::class);
 
@@ -172,6 +187,7 @@ class DatabaseProviderContractTest extends TestCase
         $this->seedSurahs($other);
         $this->seedPages($other, 20);
         $this->seedAyahs($other);
+        $this->finalise($other);
 
         $provider = new DatabaseQuranDataProvider;
 

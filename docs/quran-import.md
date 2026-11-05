@@ -350,21 +350,55 @@ before encoding so a driver returning `"1"` instead of `1` cannot change the
 hash, and the dataset version id is **not** included: the digest fingerprints
 content, so two snapshots with identical content hash equal.
 
-### The rows are frozen once accepted
+### What is frozen once accepted
 
-`quran_surahs`, `quran_pages` and `quran_ayahs` cannot be updated or deleted when
-their snapshot is `passed` or `incomplete` — at the database level, so `psql` is
-refused too, not just the application. Deleting an accepted version is refused
-as well, otherwise the FK cascade would remove its children and bypass the guard.
+The guard is in the database, so `psql` is refused too, not just the application.
+
+| Object | Refused once the snapshot is accepted |
+|---|---|
+| `quran_surahs` / `quran_pages` / `quran_ayahs` | `INSERT`, `UPDATE`, `DELETE` — including an `UPDATE` that re-parents a row from a `pending` snapshot into an accepted one (both `OLD` and `NEW` parents are checked) |
+| `quran_dataset_versions` | changing `validation_status`, `validation_report`, `content_digest`, the source identity or the timestamps; deleting the row |
+| Still allowed | `is_active` and `updated_at` (activation), `archived_at` and `notes` (maintenance) |
+
+`failed` is a special case: its metadata is frozen like any verdict, but it may
+still be deleted — it has no children and nothing depends on it, and deleting one
+is how a bad file is cleaned up.
+
+The importer is unaffected because it writes while the version is still
+`pending`, then flips it once.
 
 | | PostgreSQL | SQLite |
 |---|---|---|
-| Mechanism | `plpgsql` function + row triggers | row triggers with `RAISE(ABORT)` |
-| Scope | `BEFORE UPDATE OR DELETE` on the three tables, `BEFORE DELETE` on the versions table | same |
-| Importer | unaffected: it writes while the version is still `pending` | same |
-| Activation | unaffected: it updates `is_active` on the versions row | same |
+| Mechanism | two `plpgsql` functions + row triggers | row triggers with `RAISE(ABORT)` |
+| `validation_report` comparison | cast to text — `json` has no equality operator | `IS NOT` |
+| Unsupported drivers | `RuntimeException` at migration time, not a syntax error | same |
 
 MySQL is not supported by this schema.
+
+**Why this matters.** Without it, `UPDATE … SET validation_status = 'passed'`
+followed by `quran:activate` bypassed the V-10 gate entirely, and rewriting
+`content_digest` made any edit invisible. Both are now refused by the database.
+
+### Retiring a snapshot
+
+Accepted snapshots cannot be deleted, and the command never drops a trigger to
+get around that. `quran:forget` picks the safe action instead:
+
+```bash
+php artisan quran:forget 3 --confirm=3 --force --reason="superseded by v4"
+```
+
+| Snapshot state | Action |
+|---|---|
+| `pending` / `failed` | deleted |
+| `passed` / `incomplete` | archived (`archived_at`), rows untouched |
+| active | refused — activate another snapshot first |
+| referenced by a memorization, review or recitation | refused — historical rows are never orphaned |
+| already archived | no-op |
+
+Without `--force` it only reports what it would do. The actor, the reason and the
+action are written to the log and appended to `notes`. An archived snapshot is
+not served and cannot be activated.
 
 ### `quran:validate {version_id}`
 
@@ -385,8 +419,25 @@ three independent comparisons:
 | stored digest vs computed digest | the rows are not the rows that were imported |
 | stored stats vs recomputed stats | the stored report no longer describes the data |
 
-Exit code `0` only when the data is intact **and** the snapshot is activatable —
-that is, when the recomputed status is `passed`. Today that cannot happen: V-10
-is skipped and critical, so the command exits `1` with *"intact but not
-complete"*. A non-zero exit here means "not activatable", not necessarily
-"corrupted"; the digest line says which.
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | the data is intact **and** the snapshot is activatable (recomputed status `passed`) |
+| `1` | the data and its metadata disagree — digest, status or stats mismatch, or a check fails |
+| `2` | the data is intact but a critical check was skipped, so it cannot be activated |
+| `3` | runtime error, or the version does not exist |
+
+Today `0` cannot be reached: V-10 is skipped and critical, so an intact snapshot
+exits `2`. A `1` means corruption, not incompleteness — the two are now
+distinguishable without parsing the output.
+
+### What revalidation does not do
+
+It runs when someone runs it. Nothing recomputes the digest on every API request:
+hashing 6,236 rows per request would cost more than the protection is worth.
+
+So after activation, detection rests on two things: the database guard, which
+makes a silent edit impossible without dropping a trigger, and `quran:validate`,
+which an operator or a scheduled job has to run. There is no continuous
+verification, and this document does not claim one.

@@ -29,6 +29,9 @@ class QuranSchemaRollbackTest extends TestCase
     ];
 
     private const MIGRATIONS = [
+        '2026_11_05_000800_add_archived_at_to_quran_dataset_versions.php',
+        '2026_11_05_000700_protect_accepted_quran_snapshots.php',
+        '2026_11_05_000600_add_content_digest_to_quran_dataset_versions.php',
         '2026_11_05_000500_constrain_quran_dataset_versions.php',
         '2026_11_05_000400_create_quran_ayahs_table.php',
         '2026_11_05_000300_create_quran_pages_table.php',

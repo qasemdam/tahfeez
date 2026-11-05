@@ -54,8 +54,9 @@ class QuranValidateCommandTest extends TestCase
             ->expectsOutputToContain('matches')
             ->expectsOutputToContain('V-10')
             ->expectsOutputToContain('V-12')
-            // V-10 is skipped and critical, so the snapshot is not activatable.
-            ->assertExitCode(1);
+            // Exit 2: intact data, but V-10 is skipped and critical, so the
+            // snapshot is not activatable.
+            ->assertExitCode(2);
     }
 
     public function test_revalidation_does_not_modify_any_record(): void
@@ -70,7 +71,7 @@ class QuranValidateCommandTest extends TestCase
             'sample' => (array) DB::table('quran_ayahs')->where('dataset_version_id', $version)->where('id', 1)->first(),
         ];
 
-        $this->artisan('quran:validate', ['version_id' => $version])->assertExitCode(1);
+        $this->artisan('quran:validate', ['version_id' => $version])->assertExitCode(2);
 
         $this->assertSame($before['version'], (array) DB::table('quran_dataset_versions')->where('id', $version)->first());
         $this->assertSame($before['ayahs'], DB::table('quran_ayahs')->where('dataset_version_id', $version)->count());
@@ -123,12 +124,12 @@ class QuranValidateCommandTest extends TestCase
     {
         $this->artisan('quran:validate', ['version_id' => 9999])
             ->expectsOutputToContain('does not exist')
-            ->assertExitCode(1);
+            ->assertExitCode(3);
     }
 
     public function test_an_invalid_id_is_rejected(): void
     {
-        $this->artisan('quran:validate', ['version_id' => 0])->assertExitCode(1);
+        $this->artisan('quran:validate', ['version_id' => 0])->assertExitCode(3);
     }
 
     /**

@@ -83,6 +83,28 @@ trait SeedsSnapshots
     }
 
     /**
+     * Seeds a version the way the importer does: created as pending, filled, then
+     * flipped. Writing children into an already-accepted snapshot is refused by
+     * the database guard, and rightly so.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $overrides
+     */
+    protected function seedSnapshotWithChildren(string $status, array $payload, array $overrides = []): int
+    {
+        $version = $this->seedVersion('pending', $overrides);
+        $this->insertPayload($version, $payload);
+
+        DB::table('quran_dataset_versions')->where('id', $version)->update([
+            'validation_status' => $status,
+            'content_digest' => $this->digestOf($payload),
+            'updated_at' => now(),
+        ]);
+
+        return $version;
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     protected function digestOf(array $payload): string

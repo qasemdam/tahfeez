@@ -5,6 +5,8 @@ namespace Tests\Feature\Quran;
 use App\Domain\Groups\Models\Group;
 use App\Domain\Memorization\Models\Memorization;
 use App\Domain\Quran\Exceptions\QuranDataUnavailable;
+use App\Domain\Quran\Import\ContentDigest;
+use App\Domain\Quran\Import\DatasetPayload;
 use App\Domain\Students\Models\Student;
 use App\Domain\Tenancy\Models\Center;
 use App\Infrastructure\Quran\DatabaseQuranDataProvider;
@@ -81,9 +83,44 @@ class QuranActivationCommandTest extends TestCase
         return $versionId;
     }
 
+    /**
+     * Seeds a snapshot the way the importer does — pending, children, then the
+     * verdict — because children cannot be written into an accepted snapshot.
+     */
     private function completeVersion(array $overrides = []): int
     {
-        return $this->withChildren($this->version($overrides));
+        $status = (string) ($overrides['validation_status'] ?? 'passed');
+        $digest = $overrides['content_digest'] ?? null;
+        $report = $overrides['validation_report']
+            ?? json_encode(['passed' => $status === 'passed', 'status' => $status, 'checks' => [], 'stats' => []]);
+
+        unset($overrides['validation_status'], $overrides['content_digest'], $overrides['validation_report']);
+
+        $version = $this->version(['validation_status' => 'pending', ...$overrides]);
+        $this->withChildren($version);
+
+        DB::table('quran_dataset_versions')->where('id', $version)->update([
+            'validation_status' => $status,
+            'validation_report' => $report,
+            'content_digest' => $digest ?? $this->digestOf(SyntheticDataset::make()),
+            'updated_at' => now(),
+        ]);
+
+        return $version;
+    }
+
+    /**
+     * @param  array<string, mixed>  $dataset
+     */
+    private function digestOf(array $dataset): string
+    {
+        return ContentDigest::of(new DatasetPayload(
+            edition: (string) $dataset['edition'],
+            sourceVersion: (string) $dataset['source_version'],
+            surahs: $dataset['surahs'],
+            pages: $dataset['pages'],
+            ayahs: $dataset['ayahs'],
+        ));
     }
 
     private function activate(int $versionId): PendingCommand
@@ -282,6 +319,50 @@ class QuranActivationCommandTest extends TestCase
         $this->activate($id)->expectsOutputToContain('already active')->assertExitCode(0);
 
         $this->assertSame([$id], $this->activeIds());
+    }
+
+    public function test_activation_is_refused_when_the_digest_does_not_match(): void
+    {
+        $version = $this->completeVersion(['content_digest' => str_repeat('0', 64)]);
+
+        $this->activate($version)
+            ->expectsOutputToContain('content digest')
+            ->assertExitCode(1);
+
+        $this->assertSame([], $this->activeIds());
+    }
+
+    public function test_a_snapshot_without_a_digest_is_refused(): void
+    {
+        $version = $this->version(['validation_status' => 'pending']);
+        $this->withChildren($version);
+
+        DB::table('quran_dataset_versions')->where('id', $version)->update([
+            'validation_status' => 'passed',
+            'validation_report' => json_encode(['passed' => true, 'status' => 'passed', 'checks' => [], 'stats' => []]),
+        ]);
+
+        $this->activate($version)
+            ->expectsOutputToContain('no content digest')
+            ->assertExitCode(1);
+
+        $this->assertSame([], $this->activeIds());
+    }
+
+    public function test_a_corrupt_snapshot_does_not_replace_the_active_one(): void
+    {
+        $good = $this->completeVersion(['checksum_sha256' => str_repeat('a', 64)]);
+        $this->activate($good)->assertExitCode(0);
+
+        $corrupt = $this->completeVersion([
+            'checksum_sha256' => str_repeat('b', 64),
+            'content_digest' => str_repeat('0', 64),
+        ]);
+
+        $this->activate($corrupt)->assertExitCode(1);
+
+        $this->assertSame([$good], $this->activeIds());
+        $this->assertSame($good, (new DatabaseQuranDataProvider)->datasetVersionId());
     }
 
     public function test_the_provider_serves_nothing_before_activation(): void

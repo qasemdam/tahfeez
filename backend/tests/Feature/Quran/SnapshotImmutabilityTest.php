@@ -18,10 +18,7 @@ class SnapshotImmutabilityTest extends TestCase
 
     private function passedSnapshot(): int
     {
-        $version = $this->seedVersion('passed');
-        $this->insertPayload($version, $this->tinyPayload());
-
-        return $version;
+        return $this->seedSnapshotWithChildren('passed', $this->tinyPayload());
     }
 
     public function test_an_ayah_of_a_passed_snapshot_cannot_be_updated(): void
@@ -79,8 +76,7 @@ class SnapshotImmutabilityTest extends TestCase
 
     public function test_an_incomplete_snapshot_is_protected_too(): void
     {
-        $version = $this->seedVersion('incomplete');
-        $this->insertPayload($version, $this->tinyPayload());
+        $version = $this->seedSnapshotWithChildren('incomplete', $this->tinyPayload());
 
         $this->expectException(QueryException::class);
 

@@ -2,6 +2,8 @@
 
 namespace App\Domain\Quran\Activation;
 
+use App\Domain\Quran\Import\ContentDigest;
+use App\Domain\Quran\Import\SnapshotReader;
 use App\Domain\Quran\Import\ValidationReport;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +34,8 @@ final class QuranActivator
      */
     private const ADVISORY_LOCK_KEY = 918273645;
 
+    public function __construct(private SnapshotReader $reader) {}
+
     public function activate(int $versionId): ActivationResult
     {
         return DB::transaction(function () use ($versionId): ActivationResult {
@@ -40,7 +44,10 @@ final class QuranActivator
             $version = DB::table('quran_dataset_versions')
                 ->where('id', $versionId)
                 ->lockForUpdate()
-                ->first(['id', 'edition', 'source_version', 'validation_status', 'validation_report', 'is_active']);
+                ->first([
+                    'id', 'edition', 'source_version', 'validation_status', 'validation_report',
+                    'content_digest', 'is_active', 'archived_at',
+                ]);
 
             if ($version === null) {
                 throw ActivationFailed::notFound($versionId);
@@ -50,7 +57,17 @@ final class QuranActivator
                 throw ActivationFailed::notPassed($versionId, (string) $version->validation_status);
             }
 
+            if ($version->archived_at !== null) {
+                throw ActivationFailed::archived($versionId);
+            }
+
             $this->assertReportAgrees($version);
+
+            // The status and the report are claims. The digest is the evidence:
+            // it is recomputed from the rows themselves, so a snapshot that was
+            // edited after import cannot be activated even if its metadata was
+            // rewritten.
+            $this->assertDigestMatches($versionId, $version);
 
             $counts = $this->counts($versionId);
             $expected = $this->expected();
@@ -96,6 +113,26 @@ final class QuranActivator
                 sourceVersion: (string) $version->source_version,
             );
         });
+    }
+
+    /**
+     * Recompute the fingerprint of the stored rows and compare it with the one
+     * written at import. Reading the whole snapshot is acceptable here: activation
+     * is rare and happens once per dataset, not per request.
+     */
+    private function assertDigestMatches(int $versionId, object $version): void
+    {
+        $stored = $version->content_digest === null ? null : (string) $version->content_digest;
+
+        if ($stored === null) {
+            throw ActivationFailed::digestMissing($versionId);
+        }
+
+        $computed = ContentDigest::of($this->reader->read($versionId));
+
+        if (! hash_equals($stored, $computed)) {
+            throw ActivationFailed::digestMismatch($versionId);
+        }
     }
 
     private function lockActivations(): void

@@ -30,7 +30,7 @@ class ValidateQuranDataset extends Command
         if ($versionId < 1) {
             $this->components->error('A dataset version id is required.');
 
-            return self::FAILURE;
+            return 3;
         }
 
         try {
@@ -38,11 +38,11 @@ class ValidateQuranDataset extends Command
         } catch (QuranDataUnavailable $exception) {
             $this->components->error($exception->getMessage());
 
-            return self::FAILURE;
+            return 3;
         } catch (Throwable $exception) {
             $this->components->error('Revalidation failed unexpectedly ('.class_basename($exception).').');
 
-            return self::FAILURE;
+            return 3;
         }
 
         $this->newLine();
@@ -105,10 +105,22 @@ class ValidateQuranDataset extends Command
             return self::SUCCESS;
         }
 
-        if ($result->report->failures() !== []) {
-            $this->components->error(
-                'The snapshot does not pass validation: '.implode(', ', array_column($result->report->failures(), 'id')),
-            );
+        // Exit 1 means "the data and its metadata disagree"; exit 2 means "the
+        // data is intact but a critical check could not run". A script can tell
+        // corruption from incompleteness without parsing the output.
+        $corrupt = $result->report->failures() !== []
+            || ! $result->digestMatches()
+            || ! $result->statusMatches()
+            || $result->statsMatch() === false;
+
+        if ($corrupt) {
+            if ($result->report->failures() !== []) {
+                $this->components->error(
+                    'The snapshot does not pass validation: '.implode(', ', array_column($result->report->failures(), 'id')),
+                );
+            } else {
+                $this->components->error('The snapshot does not match its stored metadata.');
+            }
 
             return self::FAILURE;
         }
@@ -117,7 +129,7 @@ class ValidateQuranDataset extends Command
             'The snapshot is intact but not complete: a critical check could not run, so it cannot be activated.',
         );
 
-        return self::FAILURE;
+        return self::INVALID;
     }
 
     private function colourStatus(string $status): string
