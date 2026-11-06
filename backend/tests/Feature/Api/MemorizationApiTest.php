@@ -13,6 +13,7 @@ use App\Domain\Students\Models\Student;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\FailingQuranDataProvider;
 use Tests\TestCase;
 
@@ -476,6 +477,134 @@ class MemorizationApiTest extends TestCase
 
         $this->assertSame($first->json('data.id'), $second->json('data.id'));
         $this->assertSame(1, Memorization::query()->count());
+    }
+
+    public function test_a_replay_after_a_soft_delete_returns_the_deleted_record(): void
+    {
+        $s = $this->scenario();
+        $payload = [
+            'student_id' => $s['student']->id,
+            'memorization_date' => $this->today($s['center']),
+            'amount_source' => Memorization::SOURCE_MANUAL,
+            'amount_pages' => '1',
+            'client_uuid' => 'a1a1a1a1-1111-4111-8111-111111111111',
+        ];
+
+        $first = $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/memorization', $payload)
+            ->assertCreated();
+
+        $id = (int) $first->json('data.id');
+        Memorization::query()->findOrFail($id)->delete();
+        $this->assertSoftDeleted('memorizations', ['id' => $id]);
+
+        // The unique index still holds the tombstone, so a lookup that ignored
+        // trashed rows would collide instead of answering.
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/memorization', $payload)
+            ->assertOk()
+            ->assertJsonPath('data.id', $id);
+
+        $this->assertSoftDeleted('memorizations', ['id' => $id]);
+        $this->assertSame(1, Memorization::withTrashed()->count());
+    }
+
+    public function test_a_uuid_reused_for_another_student_is_rejected(): void
+    {
+        $s = $this->scenario();
+
+        $other = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
+        app(AddStudentToGroup::class)->execute($s['group'], $s['manager'], $other->id);
+
+        $payload = [
+            'student_id' => $s['student']->id,
+            'memorization_date' => $this->today($s['center']),
+            'amount_source' => Memorization::SOURCE_MANUAL,
+            'amount_pages' => '1',
+            'client_uuid' => 'a2a2a2a2-2222-4222-8222-222222222222',
+        ];
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/memorization', $payload)
+            ->assertCreated();
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/memorization', [
+            ...$payload,
+            'student_id' => $other->id,
+        ])->assertStatus(422)->assertJsonValidationErrors('client_uuid');
+
+        // The second write is refused, not silently answered with the first.
+        $this->assertSame(1, Memorization::withTrashed()->count());
+    }
+
+    public function test_a_concurrent_duplicate_returns_the_winning_record(): void
+    {
+        $s = $this->scenario();
+        $uuid = 'a3a3a3a3-3333-4333-8333-333333333333';
+        $date = $this->today($s['center']);
+
+        // Simulate the other request winning between our lookup and our insert:
+        // the winner lands while the model is being created, so the insert below
+        // hits the unique index exactly as it would under real concurrency.
+        $injected = false;
+        Memorization::creating(function () use (&$injected, $s, $uuid, $date): void {
+            if ($injected) {
+                return;
+            }
+
+            $injected = true;
+
+            DB::table('memorizations')->insert([
+                'center_id' => $s['center']->id,
+                'student_id' => $s['student']->id,
+                'group_id' => $s['group']->id,
+                'teacher_id' => $s['teacher']->id,
+                'memorization_date' => $date,
+                'amount_pages' => 1,
+                'amount_source' => Memorization::SOURCE_MANUAL,
+                'client_uuid' => $uuid,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $response = $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/memorization', [
+            'student_id' => $s['student']->id,
+            'memorization_date' => $date,
+            'amount_source' => Memorization::SOURCE_MANUAL,
+            'amount_pages' => '2',
+            'client_uuid' => $uuid,
+        ]);
+
+        $response->assertOk();
+
+        $this->assertTrue($injected);
+        $this->assertSame(1, Memorization::withTrashed()->count());
+        $this->assertSame((int) DB::table('memorizations')->value('id'), (int) $response->json('data.id'));
+    }
+
+    public function test_a_replay_of_a_record_the_actor_cannot_view_is_forbidden(): void
+    {
+        $s = $this->scenario();
+        $payload = [
+            'student_id' => $s['student']->id,
+            'memorization_date' => $this->today($s['center']),
+            'amount_source' => Memorization::SOURCE_MANUAL,
+            'amount_pages' => '1',
+            'client_uuid' => 'a4a4a4a4-4444-4444-8444-444444444444',
+        ];
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/memorization', $payload)
+            ->assertCreated();
+
+        // The student moves to another group. Its teacher may record for them,
+        // but may not read the record the previous teacher wrote.
+        $otherTeacher = User::factory()->teacher()->for($s['center'])->create();
+        $otherGroup = Group::factory()->for($s['center'])->create(['teacher_id' => $otherTeacher->id]);
+        app(AddStudentToGroup::class)->execute($otherGroup, $s['manager'], $s['student']->id);
+
+        $this->withHeaders($this->auth($otherTeacher))
+            ->postJson('/api/v1/memorization', $payload)
+            ->assertForbidden();
+
+        $this->assertSame(1, Memorization::withTrashed()->count());
     }
 
     public function test_multiple_records_per_day_are_allowed(): void

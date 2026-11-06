@@ -12,6 +12,7 @@ use App\Domain\Students\Models\Student;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\FailingQuranDataProvider;
 use Tests\TestCase;
 
@@ -243,6 +244,126 @@ class ReviewApiTest extends TestCase
 
         $this->assertSame($first->json('data.id'), $second->json('data.id'));
         $this->assertSame(1, Review::query()->count());
+    }
+
+    public function test_a_replay_after_a_soft_delete_returns_the_deleted_record(): void
+    {
+        $s = $this->scenario();
+        $payload = [
+            'student_id' => $s['student']->id,
+            'review_date' => $this->today($s['center']),
+            'amount_source' => Review::SOURCE_MANUAL,
+            'amount_pages' => '1',
+            'client_uuid' => 'b1b1b1b1-1111-4111-8111-111111111111',
+        ];
+
+        $first = $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/reviews', $payload)
+            ->assertCreated();
+
+        $id = (int) $first->json('data.id');
+        Review::query()->findOrFail($id)->delete();
+        $this->assertSoftDeleted('reviews', ['id' => $id]);
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/reviews', $payload)
+            ->assertOk()
+            ->assertJsonPath('data.id', $id);
+
+        $this->assertSoftDeleted('reviews', ['id' => $id]);
+        $this->assertSame(1, Review::withTrashed()->count());
+    }
+
+    public function test_a_uuid_reused_for_another_student_is_rejected(): void
+    {
+        $s = $this->scenario();
+
+        $other = Student::factory()->for($s['center'])->create(['enrolled_at' => '2026-01-01']);
+        app(AddStudentToGroup::class)->execute($s['group'], $s['manager'], $other->id);
+
+        $payload = [
+            'student_id' => $s['student']->id,
+            'review_date' => $this->today($s['center']),
+            'amount_source' => Review::SOURCE_MANUAL,
+            'amount_pages' => '1',
+            'client_uuid' => 'b2b2b2b2-2222-4222-8222-222222222222',
+        ];
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/reviews', $payload)
+            ->assertCreated();
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/reviews', [
+            ...$payload,
+            'student_id' => $other->id,
+        ])->assertStatus(422)->assertJsonValidationErrors('client_uuid');
+
+        $this->assertSame(1, Review::withTrashed()->count());
+    }
+
+    public function test_a_concurrent_duplicate_returns_the_winning_record(): void
+    {
+        $s = $this->scenario();
+        $uuid = 'b3b3b3b3-3333-4333-8333-333333333333';
+        $date = $this->today($s['center']);
+
+        $injected = false;
+        Review::creating(function () use (&$injected, $s, $uuid, $date): void {
+            if ($injected) {
+                return;
+            }
+
+            $injected = true;
+
+            DB::table('reviews')->insert([
+                'center_id' => $s['center']->id,
+                'student_id' => $s['student']->id,
+                'group_id' => $s['group']->id,
+                'teacher_id' => $s['teacher']->id,
+                'review_date' => $date,
+                'amount_pages' => 1,
+                'amount_source' => Review::SOURCE_MANUAL,
+                'client_uuid' => $uuid,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $response = $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/reviews', [
+            'student_id' => $s['student']->id,
+            'review_date' => $date,
+            'amount_source' => Review::SOURCE_MANUAL,
+            'amount_pages' => '2',
+            'client_uuid' => $uuid,
+        ]);
+
+        $response->assertOk();
+
+        $this->assertTrue($injected);
+        $this->assertSame(1, Review::withTrashed()->count());
+        $this->assertSame((int) DB::table('reviews')->value('id'), (int) $response->json('data.id'));
+    }
+
+    public function test_a_replay_of_a_record_the_actor_cannot_view_is_forbidden(): void
+    {
+        $s = $this->scenario();
+        $payload = [
+            'student_id' => $s['student']->id,
+            'review_date' => $this->today($s['center']),
+            'amount_source' => Review::SOURCE_MANUAL,
+            'amount_pages' => '1',
+            'client_uuid' => 'b4b4b4b4-4444-4444-8444-444444444444',
+        ];
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/reviews', $payload)
+            ->assertCreated();
+
+        $otherTeacher = User::factory()->teacher()->for($s['center'])->create();
+        $otherGroup = Group::factory()->for($s['center'])->create(['teacher_id' => $otherTeacher->id]);
+        app(AddStudentToGroup::class)->execute($otherGroup, $s['manager'], $s['student']->id);
+
+        $this->withHeaders($this->auth($otherTeacher))
+            ->postJson('/api/v1/reviews', $payload)
+            ->assertForbidden();
+
+        $this->assertSame(1, Review::withTrashed()->count());
     }
 
     public function test_multiple_reviews_per_day_are_allowed(): void
