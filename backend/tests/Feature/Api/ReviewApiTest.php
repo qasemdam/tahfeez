@@ -315,6 +315,48 @@ class ReviewApiTest extends TestCase
         $this->assertSame('0.5333', $longPage->json('data.amount_pages'));
     }
 
+    public function test_the_surah_name_degrades_to_null_when_the_dataset_disappears(): void
+    {
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/reviews', [
+            'student_id' => $s['student']->id,
+            'review_date' => $this->today($s['center']),
+            'amount_source' => Review::SOURCE_MANUAL,
+            'amount_pages' => '0.5',
+            'surah_id' => 2,
+            'from_ayah' => 1,
+            'to_ayah' => 5,
+        ])->assertCreated()->assertJsonPath('data.surah_name', 'البقرة');
+
+        $this->app->instance(QuranDataProvider::class, new FailingQuranDataProvider);
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/reviews')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.surah_name', null)
+            ->assertJsonPath('data.0.surah_id', 2);
+    }
+
+    public function test_a_manual_review_is_stored_when_the_dataset_is_unavailable(): void
+    {
+        $this->app->instance(QuranDataProvider::class, new FailingQuranDataProvider);
+
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/reviews', [
+            'student_id' => $s['student']->id,
+            'review_date' => $this->today($s['center']),
+            'amount_source' => Review::SOURCE_MANUAL,
+            'amount_pages' => '1.5',
+        ])->assertCreated()
+            ->assertJsonPath('data.surah_name', null)
+            ->assertJsonPath('data.amount_pages', '1.5000');
+
+        $this->assertDatabaseCount('reviews', 1);
+    }
+
     public function test_calculated_fails_clearly_when_the_provider_cannot_measure(): void
     {
         $this->app->instance(QuranDataProvider::class, new FailingQuranDataProvider);

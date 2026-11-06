@@ -10,12 +10,17 @@ use App\Domain\Quran\Support\PageMeasurement;
 /**
  * A provider that cannot answer anything; used to prove CALCULATED records
  * fail clearly instead of guessing an amount.
+ *
+ * `surahs()` throws rather than returning `[]`, because that is what
+ * DatabaseQuranDataProvider does when no snapshot is active. Returning an empty
+ * list here would have made every test built on this double pass while the
+ * production path failed.
  */
 final class FailingQuranDataProvider implements QuranDataProvider
 {
     public function surahs(): array
     {
-        return [];
+        throw new QuranDataUnavailable('No Quran dataset is active.');
     }
 
     public function linesOnPage(int $page): int

@@ -7,6 +7,8 @@ use App\Domain\Groups\Actions\AddStudentToGroup;
 use App\Domain\Groups\Models\Group;
 use App\Domain\Memorization\Models\Memorization;
 use App\Domain\Quran\Contracts\QuranDataProvider;
+use App\Domain\Quran\Support\AyahLocation;
+use App\Domain\Quran\Support\PageMeasurement;
 use App\Domain\Students\Models\Student;
 use App\Domain\Tenancy\Models\Center;
 use App\Models\User;
@@ -230,6 +232,102 @@ class MemorizationApiTest extends TestCase
             'from_ayah' => 1,
             'to_ayah' => 5,
         ])->assertStatus(422)->assertJsonValidationErrors('surah_id');
+    }
+
+    public function test_the_surah_name_degrades_to_null_when_the_dataset_disappears(): void
+    {
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/memorization', [
+            'student_id' => $s['student']->id,
+            'memorization_date' => $this->today($s['center']),
+            'amount_source' => Memorization::SOURCE_MANUAL,
+            'amount_pages' => '0.5',
+            'surah_id' => 2,
+            'from_ayah' => 1,
+            'to_ayah' => 5,
+        ])->assertCreated()->assertJsonPath('data.surah_name', 'البقرة');
+
+        // The dataset goes away: the same record must still be listed, with the
+        // name dropped rather than the whole response turned into a 503.
+        $this->app->instance(QuranDataProvider::class, new FailingQuranDataProvider);
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/memorization')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.surah_name', null)
+            ->assertJsonPath('data.0.surah_id', 2);
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/memorization/'.Memorization::query()->value('id'))
+            ->assertOk()
+            ->assertJsonPath('data.surah_name', null);
+    }
+
+    public function test_a_manual_record_is_stored_when_the_dataset_is_unavailable(): void
+    {
+        $this->app->instance(QuranDataProvider::class, new FailingQuranDataProvider);
+
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['manager']))->postJson('/api/v1/memorization', [
+            'student_id' => $s['student']->id,
+            'memorization_date' => $this->today($s['center']),
+            'amount_source' => Memorization::SOURCE_MANUAL,
+            'amount_pages' => '1.5',
+        ])->assertCreated()
+            ->assertJsonPath('data.surah_name', null)
+            ->assertJsonPath('data.amount_pages', '1.5000');
+
+        $this->assertDatabaseCount('memorizations', 1);
+    }
+
+    public function test_an_unexpected_enrichment_failure_is_not_swallowed(): void
+    {
+        $s = $this->scenario();
+
+        // Only QuranDataUnavailable is tolerated; a bug in the provider must
+        // still surface instead of being hidden behind a null name.
+        $this->app->instance(QuranDataProvider::class, new class implements QuranDataProvider
+        {
+            public function surahs(): array
+            {
+                throw new \RuntimeException('boom');
+            }
+
+            public function linesOnPage(int $page): int
+            {
+                throw new \RuntimeException('boom');
+            }
+
+            public function ayahLocation(int $surahId, int $ayahNumber): AyahLocation
+            {
+                throw new \RuntimeException('boom');
+            }
+
+            public function measure(int $fromAyahId, int $toAyahId): PageMeasurement
+            {
+                throw new \RuntimeException('boom');
+            }
+
+            public function datasetVersion(): string
+            {
+                return 'none';
+            }
+
+            public function datasetVersionId(): int
+            {
+                return 0;
+            }
+        });
+
+        $this->withoutExceptionHandling();
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->withHeaders($this->auth($s['manager']))
+            ->getJson('/api/v1/memorization');
     }
 
     public function test_an_unknown_surah_is_rejected(): void

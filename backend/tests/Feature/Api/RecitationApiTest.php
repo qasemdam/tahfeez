@@ -377,6 +377,37 @@ class RecitationApiTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('hifz_errors');
     }
 
+    public function test_the_surah_name_degrades_to_null_when_the_dataset_disappears(): void
+    {
+        $s = $this->scenario();
+
+        $this->withHeaders($this->auth($s['teacher']))->postJson('/api/v1/recitations', [
+            'student_id' => $s['student']->id,
+            'recitation_date' => $this->today($s['center']),
+            'surah_id' => 1,
+            'from_ayah' => 1,
+            'to_ayah' => 7,
+        ])->assertCreated()->assertJsonPath('data.surah_name', 'الفاتحة');
+
+        // Recitation cannot be *recorded* without coordinates — the range is the
+        // record. Reading it back must still work, with the name dropped.
+        $this->app->instance(QuranDataProvider::class, new FailingQuranDataProvider);
+
+        $this->withHeaders($this->auth($s['teacher']))
+            ->getJson('/api/v1/recitations')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.surah_name', null)
+            ->assertJsonPath('data.0.surah_id', 1)
+            ->assertJsonPath('data.0.from_ayah', 1)
+            ->assertJsonPath('data.0.to_ayah', 7);
+
+        $this->withHeaders($this->auth($s['teacher']))
+            ->getJson('/api/v1/recitations/'.Recitation::query()->value('id'))
+            ->assertOk()
+            ->assertJsonPath('data.surah_name', null);
+    }
+
     public function test_calculated_provider_failure_is_clear(): void
     {
         $this->app->instance(QuranDataProvider::class, new FailingQuranDataProvider);
