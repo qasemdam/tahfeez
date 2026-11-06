@@ -49,6 +49,12 @@ String describeApiError(Object error) {
     if (status == 422) {
       return 'تحقق من البيانات المدخلة';
     }
+    if (status == 503) {
+      // The API answers 503 when no Quran dataset is active. That is a
+      // deployment state, not an outage: saying "server error, try later"
+      // sends the user to retry something only an administrator can fix.
+      return 'بيانات القرآن غير متاحة حاليًا، يرجى المحاولة لاحقًا أو التواصل مع الإدارة.';
+    }
     if (status != null && status >= 500) {
       return 'حدث خطأ في الخادم، حاول لاحقًا';
     }

@@ -26,9 +26,20 @@ void main() {
     expect(describeApiError(_error(status: 422)), 'تحقق من البيانات المدخلة');
   });
 
-  test('5xx maps to a server-error message', () {
+  test('503 maps to the quran-data message, not the generic server one', () {
+    expect(
+      describeApiError(_error(status: 503)),
+      'بيانات القرآن غير متاحة حاليًا، يرجى المحاولة لاحقًا أو التواصل مع الإدارة.',
+    );
+  });
+
+  test('500 and 502 keep the generic server message', () {
     expect(
       describeApiError(_error(status: 500)),
+      'حدث خطأ في الخادم، حاول لاحقًا',
+    );
+    expect(
+      describeApiError(_error(status: 502)),
       'حدث خطأ في الخادم، حاول لاحقًا',
     );
   });
